@@ -21,25 +21,7 @@ members = [
   "cargo_nih_plug",
   "xtask",
 
-  "plugins/examples/gain",
-  "plugins/examples/gain_gui_egui",
-  "plugins/examples/gain_gui_iced",
-  "plugins/examples/gain_gui_vizia",
-  "plugins/examples/midi_inverter",
-  "plugins/examples/poly_mod_synth",
-  "plugins/examples/sine",
-  "plugins/examples/stft",
-  "plugins/examples/sysex",
-
-  "plugins/soft_vacuum",
-  "plugins/buffr_glitch",
-  "plugins/crisp",
-  "plugins/crossover",
-  "plugins/diopser",
-  "plugins/loudness_war_winner",
-  "plugins/puberty_simulator",
-  "plugins/safety_limiter",
-  "plugins/spectral_compressor",
+  "plugins/subsynth",
 ]
 
 [features]

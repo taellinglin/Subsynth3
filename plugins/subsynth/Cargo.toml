@@ -1,0 +1,20 @@
+[package]
+name = "subsynth"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ling Lin <taellinglin@gmail.com>"]
+license = "ISC"
+include = ["assets/**"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nih_plug = { path = "../../", features = ["assert_process_allocs"] }
+nih_plug_vizia = { path = "../../nih_plug_vizia" }
+
+enum-iterator = "1.4.1"
+atomic_float = "0.1"
+
+rand = "0.8.5"
+rand_pcg = "0.3.1"
