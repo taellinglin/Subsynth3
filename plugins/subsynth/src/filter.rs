@@ -1,4 +1,4 @@
-use nih_plug::params::enums::{Enum, EnumParam};
+use nih_plug::params::enums::{Enum};
 use enum_iterator::Sequence;
 use std::f32::consts::PI;
 pub trait Envelope {
@@ -152,26 +152,6 @@ pub trait Filter: Send {
     fn set_sample_rate(&mut self, sample_rate: f32);
 }
 
-pub struct FilterFactory;
-
-impl FilterFactory {
-    pub fn create_filter(
-        filter_type: FilterType,
-        cutoff: f32,
-        cutoff_envelope: ADSREnvelope,
-        resonance: f32,
-        resonance_envelope: ADSREnvelope,
-        sample_rate: f32,
-    ) -> Box<dyn Filter> {
-        match filter_type {
-            FilterType::Lowpass => Box::new(LowpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-            FilterType::Bandpass => Box::new(BandpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-            FilterType::Highpass => Box::new(HighpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-            FilterType::Notch => Box::new(NotchFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-            FilterType::Statevariable => Box::new(StatevariableFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        }
-    }
-}
 
 pub struct HighpassFilter {
     cutoff: f32,
@@ -359,7 +339,7 @@ impl Filter for NotchFilter {
     fn process(&mut self, input: f32) -> f32 {
         let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
         let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
-        let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
+        let _c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = resonance;
         let output = (input - self.prev_output) + r * (self.prev_input - self.prev_output);
         self.prev_input = input;
@@ -412,7 +392,7 @@ impl Filter for StatevariableFilter {
         let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
 
         let f = cutoff / self.sample_rate;
-        let k = 2.0 * (1.0 - resonance);
+        let _k = 2.0 * (1.0 - resonance);
         let q = 1.0 / (2.0 * resonance);
 
         let input_minus_hp = input - self.highpass_output;
@@ -440,7 +420,7 @@ pub fn generate_filter(
     resonance: f32,
     cutoff_envelope: ADSREnvelope,
     resonance_envelope: ADSREnvelope,
-    generated_sample: f32,
+    _generated_sample: f32,
     sample_rate: f32,
 ) -> Box<dyn Filter> {
 

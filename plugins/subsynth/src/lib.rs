@@ -8,8 +8,8 @@ use rand_pcg::Pcg32;
 use std::sync::Arc;
 use waveform::Waveform;
 use waveform::generate_waveform;
-use filter::{NotchFilter, BandpassFilter, HighpassFilter, LowpassFilter, StatevariableFilter};
-use filter::{Filter, FilterType, FilterFactory, Envelope, ADSREnvelope, ADSREnvelopeState};
+
+use filter::{Filter, FilterType, Envelope, ADSREnvelope, ADSREnvelopeState};
 
 use filter::generate_filter;
 
@@ -310,7 +310,7 @@ impl Plugin for SubSynth {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        buffer_config: &BufferConfig,
+        _buffer_config: &BufferConfig,
         _context: &mut impl InitContext<Self>,
     ) -> bool {
         // After `PEAK_METER_DECAY_MS` milliseconds of pure silence, the peak meter's value should
@@ -497,20 +497,20 @@ impl Plugin for SubSynth {
                     
                         // Generate waveform
                         let waveform = self.params.waveform.value();
-                        let mut generated_sample = generate_waveform(waveform, voice.phase);
+                        let generated_sample = generate_waveform(waveform, voice.phase);
                     
                         // Apply filter
                         let filter_type = self.params.filter_type.value();
                         let cutoff = self.params.filter_cut.value();
                         let resonance = self.params.filter_res.value();
-                        let cutoff_attack = self.params.filter_cut_attack_ms.value();
-                        let cutoff_decay = self.params.filter_cut_decay_ms.value();
-                        let cutoff_sustain = self.params.filter_cut_sustain_ms.value();
-                        let cutoff_release = self.params.filter_cut_release_ms.value();
-                        let resonance_attack = self.params.filter_res_attack_ms.value();
-                        let resonance_decay = self.params.filter_res_decay_ms.value();
-                        let resonance_sustain = self.params.filter_res_sustain_ms.value();
-                        let resonance_release = self.params.filter_res_release_ms.value();
+                        let _cutoff_attack = self.params.filter_cut_attack_ms.value();
+                        let _cutoff_decay = self.params.filter_cut_decay_ms.value();
+                        let _cutoff_sustain = self.params.filter_cut_sustain_ms.value();
+                        let _cutoff_release = self.params.filter_cut_release_ms.value();
+                        let _resonance_attack = self.params.filter_res_attack_ms.value();
+                        let _resonance_decay = self.params.filter_res_decay_ms.value();
+                        let _resonance_sustain = self.params.filter_res_sustain_ms.value();
+                        let _resonance_release = self.params.filter_res_release_ms.value();
                     
                         let mut filtered_sample = generate_filter(
                             filter_type,
@@ -657,7 +657,7 @@ impl SubSynth {
 
     fn start_release_for_voices(
         &mut self,
-        sample_rate: f32,
+        _sample_rate: f32,
         voice_id: Option<i32>,
         channel: u8,
         note: u8,
@@ -710,9 +710,6 @@ impl SubSynth {
                 _ => (),
             }
         }
-    }
-    fn waveform(&self) -> Waveform {
-        self.params.waveform.value()
     }
     
 }
