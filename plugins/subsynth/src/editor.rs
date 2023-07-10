@@ -85,10 +85,7 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res);
-            })
-            .row_between(Pixels(0.0))
-            .child_left(Stretch(1.0))
-            .child_right(Stretch(1.0));
+            });
             
 
             VStack::new(cx, |cx| {
@@ -120,10 +117,7 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.amp_release_ms);
-            })
-            .row_between(Pixels(0.0))
-            .child_left(Stretch(1.0))
-            .child_right(Stretch(1.0));
+            });
 
             VStack::new(cx, |cx| {
                 Label::new(cx, "Filter Cut Atk")

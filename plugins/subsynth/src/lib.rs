@@ -132,10 +132,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             amp_release_ms: FloatParam::new(
                 "Release",
-                0.25,
+                500.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 1000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -492,9 +492,8 @@ impl Plugin for SubSynth {
                     }
                     
                     for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
-                        let envelope_time = voice.amp_envelope.get_time();
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value(envelope_time);
-                        //voice.amp_envelope.trigger();
+                        let amp = voice.velocity_sqrt * gain[value_idx];
+                        voice.amp_envelope.trigger();
                     
                         // Generate waveform
                         let waveform = self.params.waveform.value();
@@ -532,7 +531,7 @@ impl Plugin for SubSynth {
                     
                         // Apply envelope to each sample of the waveform
                         for _ in 0..block_len {
-                            let processed_sample = filtered_sample.process(amp * generated_sample);
+                            let processed_sample = filtered_sample.process(amp + generated_sample);
                     
                             output[0][sample_idx] += processed_sample;
                             output[1][sample_idx] += processed_sample;
