@@ -164,7 +164,7 @@ impl Default for SubSynthParams {
             )
             .with_step_size(0.1)
             .with_unit(" ms"),
-            filter_type: EnumParam::new("Filter Type", FilterType::Lowpass),
+            filter_type: EnumParam::new("Filter Type", FilterType::Notch),
             filter_cut: FloatParam::new(
                 "Filter Cutoff",
                 10000.0,
@@ -516,14 +516,8 @@ impl Plugin for SubSynth {
                             filter_type,
                             cutoff,
                             resonance,
-                            cutoff_attack,
-                            cutoff_decay,
-                            cutoff_sustain,
-                            cutoff_release,
-                            resonance_attack,
-                            resonance_decay,
-                            resonance_sustain,
-                            resonance_release,
+                            voice.filter_cut_envelope,
+                            voice.filter_res_envelope,
                             generated_sample,
                             sample_rate,
                         );
@@ -532,10 +526,10 @@ impl Plugin for SubSynth {
                         // Apply envelope to each sample of the waveform
                         for _ in 0..block_len {
                             let processed_sample = filtered_sample.process(amp * generated_sample);
-                        
-                            output[0][sample_idx] = SubSynth::clip(output[0][sample_idx] + processed_sample, -1.0, 1.0);
-                            output[1][sample_idx] = SubSynth::clip(output[1][sample_idx] + processed_sample, -1.0, 1.0);
-                        
+                    
+                            output[0][sample_idx] += processed_sample;
+                            output[1][sample_idx] += processed_sample;
+                    
                             //generated_sample = generated_sample * amp;
                             voice.phase += voice.phase_delta;
                             if voice.phase >= 1.0 {
@@ -720,15 +714,7 @@ impl SubSynth {
     fn waveform(&self) -> Waveform {
         self.params.waveform.value()
     }
-    fn clip(value: f32, min: f32, max: f32) -> f32 {
-        if value < min {
-            min
-        } else if value > max {
-            max
-        } else {
-            value
-        }
-    }
+    
 }
 
 const fn compute_fallback_voice_id(note: u8, channel: u8) -> i32 {
