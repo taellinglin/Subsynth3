@@ -121,10 +121,10 @@ impl Default for SubSynthParams {
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
             amp_attack_ms: FloatParam::new(
                 "Attack",
-                0.0,
+                500.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 1000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -325,27 +325,39 @@ impl Plugin for SubSynth {
         self.voices.fill(None);
         self.next_internal_voice_id = 0;
     }
-
+    
     fn process(
         &mut self,
         buffer: &mut Buffer,
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        // NIH-plug has a block-splitting adapter for `Buffer`. While this works great for effect
+        // plugins, for polyphonic synths the block size should be `min(MAX_BLOCK_SIZE,
+        // num_remaining_samples, next_event_idx - block_start_idx)`. Because blocks also need to be
+        // split on note events, it's easier to work with raw audio here and to do the splitting by
+        // hand.
         let num_samples = buffer.samples();
         let sample_rate = context.transport().sample_rate;
         let output = buffer.as_slice();
-    
+
         let mut next_event = context.next_event();
         let mut block_start: usize = 0;
         let mut block_end: usize = MAX_BLOCK_SIZE.min(num_samples);
-    
         while block_start < num_samples {
+            // First of all, handle all note events that happen at the start of the block, and cut
+            // the block short if another event happens before the end of it. To handle polyphonic
+            // modulation for new notes properly, we'll keep track of the next internal note index
+            // at the block's start. If we receive polyphonic modulation that matches a voice that
+            // has an internal note ID that's great than or equal to this one, then we should start
+            // the note's smoother at the new value instead of fading in from the global value.
             let this_sample_internal_voice_id_start = self.next_internal_voice_id;
-    
             'events: loop {
                 match next_event {
+                    // If the event happens now, then we'll keep processing events
                     Some(event) if (event.timing() as usize) <= block_start => {
+                        // This synth doesn't support any of the polyphonic expression events. A
+                        // real synth plugin however will want to support those.
                         match event {
                             NoteEvent::NoteOn {
                                 timing,
@@ -355,21 +367,15 @@ impl Plugin for SubSynth {
                                 velocity,
                             } => {
                                 let initial_phase: f32 = self.prng.gen();
-                                let attack_time = self.params.amp_attack_ms.value() * 1000.0; // Convert attack time to seconds
-                                let release_time = self.params.amp_release_ms.value() * 1000.0; // Convert release time to seconds
-                                let decay_time = self.params.amp_decay_ms.value() * 1000.0; // Convert decay time to seconds
-                                let sustain_level = self.params.amp_sustain_level.value() * 1000.0; // Sustain level (between 0.0 and 1.0)
+                                // This starts with the attack portion of the amplitude envelope
+                                let amp_envelope = ADSREnvelope::new(self.params.amp_attack_ms.value(), self.params.amp_decay_ms.value(), self.params.amp_sustain_level.value(), self.params.amp_release_ms.value());
 
-                                let amp_envelope = ADSREnvelope::new(attack_time, decay_time, sustain_level, release_time);
-                                //amp_envelope.trigger();
-
-                                let voice = self.start_voice(context, timing, voice_id, channel, note);
+                                let voice =
+                                    self.start_voice(context, timing, voice_id, channel, note);
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
                                 voice.phase_delta = util::midi_note_to_freq(note) / sample_rate;
-
                                 voice.amp_envelope = amp_envelope;
-
                             }
                             NoteEvent::NoteOff {
                                 timing: _,
@@ -394,29 +400,51 @@ impl Plugin for SubSynth {
                                 poly_modulation_id,
                                 normalized_offset,
                             } => {
+                                // Polyphonic modulation events are matched to voices using the
+                                // voice ID, and to parameters using the poly modulation ID. The
+                                // host will probably send a modulation event every N samples. This
+                                // will happen before the voice is active, and of course also after
+                                // it has been terminated (because the host doesn't know that it
+                                // will be). Because of that, we won't print any assertion failures
+                                // when we can't find the voice index here.
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id) {
                                     let voice = self.voices[voice_idx].as_mut().unwrap();
-    
+
                                     match poly_modulation_id {
                                         GAIN_POLY_MOD_ID => {
+                                            // This should either create a smoother for this
+                                            // modulated parameter or update the existing one.
+                                            // Notice how this uses the parameter's unmodulated
+                                            // normalized value in combination with the normalized
+                                            // offset to create the target plain value
                                             let target_plain_value = self
                                                 .params
                                                 .gain
                                                 .preview_modulated(normalized_offset);
-                                            let (_, smoother) = voice.voice_gain.get_or_insert_with(|| {
-                                                (
-                                                    normalized_offset,
-                                                    self.params.gain.smoothed.clone(),
-                                                )
-                                            });
-                                            if voice.internal_voice_id >= this_sample_internal_voice_id_start {
+                                            let (_, smoother) =
+                                                voice.voice_gain.get_or_insert_with(|| {
+                                                    (
+                                                        normalized_offset,
+                                                        self.params.gain.smoothed.clone(),
+                                                    )
+                                                });
+
+                                            // If this `PolyModulation` events happens on the
+                                            // same sample as a voice's `NoteOn` event, then it
+                                            // should immediately use the modulated value
+                                            // instead of slowly fading in
+                                            if voice.internal_voice_id
+                                                >= this_sample_internal_voice_id_start
+                                            {
                                                 smoother.reset(target_plain_value);
                                             } else {
-                                                smoother.set_target(sample_rate, target_plain_value);
+                                                smoother
+                                                    .set_target(sample_rate, target_plain_value);
                                             }
                                         }
                                         n => nih_debug_assert_failure!(
-                                            "Polyphonic modulation sent for unknown poly modulation ID {}",
+                                            "Polyphonic modulation sent for unknown poly \
+                                             modulation ID {}",
                                             n
                                         ),
                                     }
@@ -427,12 +455,21 @@ impl Plugin for SubSynth {
                                 poly_modulation_id,
                                 normalized_value,
                             } => {
+                                // Modulation always acts as an offset to the parameter's current
+                                // automated value. So if the host sends a new automation value for
+                                // a modulated parameter, the modulated values/smoothing targets
+                                // need to be updated for all polyphonically modulated voices.
                                 for voice in self.voices.iter_mut().filter_map(|v| v.as_mut()) {
                                     match poly_modulation_id {
                                         GAIN_POLY_MOD_ID => {
                                             let (normalized_offset, smoother) =
                                                 match voice.voice_gain.as_mut() {
                                                     Some((o, s)) => (o, s),
+                                                    // If the voice does not have existing
+                                                    // polyphonic modulation, then there's nothing
+                                                    // to do here. The global automation/monophonic
+                                                    // modulation has already been taken care of by
+                                                    // the framework.
                                                     None => continue,
                                                 };
                                             let target_plain_value =
@@ -442,7 +479,8 @@ impl Plugin for SubSynth {
                                             smoother.set_target(sample_rate, target_plain_value);
                                         }
                                         n => nih_debug_assert_failure!(
-                                            "Automation event sent for unknown poly modulation ID {}",
+                                            "Automation event sent for unknown poly modulation ID \
+                                             {}",
                                             n
                                         ),
                                     }
@@ -450,9 +488,11 @@ impl Plugin for SubSynth {
                             }
                             _ => (),
                         };
-    
+
                         next_event = context.next_event();
                     }
+                    // If the event happens before the end of the block, then the block should be cut
+                    // short so the next block starts at the event
                     Some(event) if (event.timing() as usize) < block_end => {
                         block_end = event.timing() as usize;
                         break 'events;
@@ -460,18 +500,27 @@ impl Plugin for SubSynth {
                     _ => break 'events,
                 }
             }
-    
-            // Clear output buffer
+
+            // We'll start with silence, and then add the output from the active voices
             output[0][block_start..block_end].fill(0.0);
             output[1][block_start..block_end].fill(0.0);
-    
+
+            // These are the smoothed global parameter values. These are used for voices that do not
+            // have polyphonic modulation applied to them. With a plugin as simple as this it would
+            // be possible to avoid this completely by simply always copying the smoother into the
+            // voice's struct, but that may not be realistic when the plugin has hundreds of
+            // parameters. The `voice_*` arrays are scratch arrays that an individual voice can use.
             let block_len = block_end - block_start;
             let mut gain = [0.0; MAX_BLOCK_SIZE];
             let mut voice_gain = [0.0; MAX_BLOCK_SIZE];
             self.params.gain.smoothed.next_block(&mut gain, block_len);
-    
-            // Process voices
+
+            // TODO: Some form of band limiting
+            // TODO: Filter
             for voice in self.voices.iter_mut().filter_map(|v| v.as_mut()) {
+                // Depending on whether the voice has polyphonic modulation applied to it,
+                // either the global parameter values are used, or the voice's smoother is used
+                // to generate unique modulated values for that voice
                 let gain = match &voice.voice_gain {
                     Some((_, smoother)) => {
                         smoother.next_block(&mut voice_gain, block_len);
@@ -479,100 +528,84 @@ impl Plugin for SubSynth {
                     }
                     None => &gain,
                 };
-                    if let ADSREnvelopeState::Idle = voice.amp_envelope.get_state() {
-                        if voice.amp_envelope.get_value(0.0) == 0.0 {
-                            context.send_event(NoteEvent::VoiceTerminated {
-                                timing: block_end as u32,
-                                voice_id: Some(voice.voice_id),
-                                channel: voice.channel,
-                                note: voice.note,
-                            });
-                            //self.voices[voice_idx] = None;
-                        }
-                    }
+
+                // This is an exponential smoother repurposed as an AR envelope with values between
+                // 0 and 1. When a note off event is received, this envelope will start fading out
+                // again. When it reaches 0, we will terminate the voice.
+                voice
+                    .amp_envelope;
                     
+                
+                    
+                    // Apply filter
+                    let filter_type = self.params.filter_type.value();
+                    let cutoff = self.params.filter_cut.value();
+                    let resonance = self.params.filter_res.value();
+                    let _cutoff_attack = self.params.filter_cut_attack_ms.value();
+                    let _cutoff_decay = self.params.filter_cut_decay_ms.value();
+                    let _cutoff_sustain = self.params.filter_cut_sustain_ms.value();
+                    let _cutoff_release = self.params.filter_cut_release_ms.value();
+                    let _resonance_attack = self.params.filter_res_attack_ms.value();
+                    let _resonance_decay = self.params.filter_res_decay_ms.value();
+                    let _resonance_sustain = self.params.filter_res_sustain_ms.value();
+                    let _resonance_release = self.params.filter_res_release_ms.value();
+                    let waveform = self.params.waveform.value();
+                    let generated_sample = SubSynth::clip(generate_waveform(waveform, voice.phase), 1.0) ;  
+                    let mut filtered_sample = generate_filter(
+                        filter_type,
+                        cutoff,
+                        resonance,
+                        voice.filter_cut_envelope,
+                        voice.filter_res_envelope,
+                        generated_sample,
+                        sample_rate,
+                    );
+                    filtered_sample.set_sample_rate(sample_rate);
+                
+                    // Apply envelope to each sample of the waveform
                     for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
-                        let amp = voice.velocity_sqrt * gain[value_idx];
-                        voice.amp_envelope.trigger();
-                    
-                        // Generate waveform
-                        let waveform = self.params.waveform.value();
-                        let generated_sample = generate_waveform(waveform, voice.phase);
-                    
-                        // Apply filter
-                        let filter_type = self.params.filter_type.value();
-                        let cutoff = self.params.filter_cut.value();
-                        let resonance = self.params.filter_res.value();
-                        let _cutoff_attack = self.params.filter_cut_attack_ms.value();
-                        let _cutoff_decay = self.params.filter_cut_decay_ms.value();
-                        let _cutoff_sustain = self.params.filter_cut_sustain_ms.value();
-                        let _cutoff_release = self.params.filter_cut_release_ms.value();
-                        let _resonance_attack = self.params.filter_res_attack_ms.value();
-                        let _resonance_decay = self.params.filter_res_decay_ms.value();
-                        let _resonance_sustain = self.params.filter_res_sustain_ms.value();
-                        let _resonance_release = self.params.filter_res_release_ms.value();
-                    
-                        let mut filtered_sample = generate_filter(
-                            filter_type,
-                            cutoff,
-                            resonance,
-                            voice.filter_cut_envelope,
-                            voice.filter_res_envelope,
-                            generated_sample,
-                            sample_rate,
-                        );
-                        filtered_sample.set_sample_rate(sample_rate);
-                    
-                        // Apply envelope to each sample of the waveform
-                        for _ in 0..block_len {
-                            let processed_sample = filtered_sample.process(amp * generated_sample);
-                    
-                            output[0][sample_idx] += processed_sample;
-                            output[1][sample_idx] += processed_sample;
-                    
-                            //generated_sample = generated_sample * amp;
-                            voice.phase += voice.phase_delta;
-                            if voice.phase >= 1.0 {
-                                voice.phase -= 1.0;
-                            }
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value(sample_idx as f32 / sample_rate);
+                        let processed_sample = filtered_sample.process(SubSynth::clip(amp * generated_sample, 1.0));
+                
+                        output[0][sample_idx] += processed_sample;
+                        output[1][sample_idx] += processed_sample;
+                
+                        //generated_sample = generated_sample * amp;
+                        voice.phase += voice.phase_delta;
+                        if voice.phase >= 1.0 {
+                            voice.phase -= 1.0;
                         }
                     }
-                    
             }
 
-            // Process voice termination
-            let mut terminated_voices: Vec<usize> = vec![]; // Track the voices to terminate
-            for (voice_idx, voice) in self.voices.iter_mut().enumerate() {
-                if let Some(voice) = voice {
-                    if voice.amp_envelope.get_state() == ADSREnvelopeState::Idle {
-                        // Voice has reached the idle state
-                        terminated_voices.push(voice_idx);
+            // Terminate voices whose release period has fully ended. This could be done as part of
+            // the previous loop but this is simpler.
+            for voice in self.voices.iter_mut() {
+                match voice {
+                    Some(v) if v.releasing && v.amp_envelope.previous_value() == 0.0 => {
+                        // This event is very important, as it allows the host to manage its own modulation
+                        // voices
+                        context.send_event(NoteEvent::VoiceTerminated {
+                            timing: block_end as u32,
+                            voice_id: Some(v.voice_id),
+                            channel: v.channel,
+                            note: v.note,
+                        });
+                        *voice = None;
                     }
+                    _ => (),
                 }
             }
 
-            // Terminate the voices outside the loop to avoid modifying the vector while iterating
-            for voice_idx in terminated_voices {
-                if let Some(voice) = self.voices[voice_idx].take() {
-                    context.send_event(NoteEvent::VoiceTerminated {
-                        timing: block_end as u32,
-                        voice_id: Some(voice.voice_id),
-                        channel: voice.channel,
-                        note: voice.note,
-                    });
-                }
-            }
-
-
-
-
+            // And then just keep processing blocks until we've run out of buffer to fill
             block_start = block_end;
             block_end = (block_start + MAX_BLOCK_SIZE).min(num_samples);
         }
 
         ProcessStatus::Normal
     }
-}    
+}
+
 impl SubSynth {
     fn get_voice_idx(&mut self, voice_id: i32) -> Option<usize> {
         self.voices
@@ -711,6 +744,16 @@ impl SubSynth {
             }
         }
     }
+    fn clip(input: f32, limit: f32) -> f32 {
+        if input > limit {
+            limit
+        } else if input < -limit {
+            -limit
+        } else {
+            input
+        }
+    }
+    
     
 }
 
