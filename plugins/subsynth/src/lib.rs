@@ -82,8 +82,8 @@ struct Voice {
     releasing: bool,
     amp_envelope: ADSREnvelope,
     voice_gain: Option<(f32, Smoother<f32>)>,
-    filter_cut_envelope: Smoother<f32>,
-    filter_res_envelope: Smoother<f32>,
+    filter_cut_envelope: ADSREnvelope,
+    filter_res_envelope: ADSREnvelope,
     filter: Option<FilterType>,
 
 }
@@ -531,11 +531,11 @@ impl Plugin for SubSynth {
                     
                         // Apply envelope to each sample of the waveform
                         for _ in 0..block_len {
-                            let processed_sample = filtered_sample.process(amp + generated_sample);
-                    
-                            output[0][sample_idx] += processed_sample;
-                            output[1][sample_idx] += processed_sample;
-                    
+                            let processed_sample = filtered_sample.process(amp * generated_sample);
+                        
+                            output[0][sample_idx] = SubSynth::clip(output[0][sample_idx] + processed_sample, -1.0, 1.0);
+                            output[1][sample_idx] = SubSynth::clip(output[1][sample_idx] + processed_sample, -1.0, 1.0);
+                        
                             //generated_sample = generated_sample * amp;
                             voice.phase += voice.phase_delta;
                             if voice.phase >= 1.0 {
@@ -611,8 +611,18 @@ impl SubSynth {
                 self.params.amp_release_ms.value(),
             ),
             voice_gain: None,
-            filter_cut_envelope: Smoother::new(SmoothingStyle::Linear(0.0)),
-            filter_res_envelope: Smoother::new(SmoothingStyle::Linear(0.0)),
+            filter_cut_envelope: ADSREnvelope::new(
+                self.params.filter_cut_attack_ms.value(),
+                self.params.filter_cut_decay_ms.value(),
+                self.params.filter_cut_sustain_ms.value(),
+                self.params.filter_cut_release_ms.value(),
+            ),
+            filter_res_envelope: ADSREnvelope::new(
+                self.params.filter_res_attack_ms.value(),
+                self.params.filter_res_decay_ms.value(),
+                self.params.filter_res_sustain_ms.value(),
+                self.params.filter_res_release_ms.value(),
+            ),
     
             filter: Some(self.params.filter_type.value()),
         };
@@ -624,6 +634,8 @@ impl SubSynth {
             if voice.is_none() {
                 *voice = Some(new_voice);
                 voice.as_mut().unwrap().amp_envelope.trigger();
+                voice.as_mut().unwrap().filter_cut_envelope.trigger();
+                voice.as_mut().unwrap().filter_res_envelope.trigger();
             }
             voice.as_mut().unwrap()
         } else {
@@ -660,6 +672,8 @@ impl SubSynth {
             if let Some(voice) = voice {
                 if voice_id == Some(voice.voice_id) || (channel == voice.channel && note == voice.note) {
                     voice.amp_envelope.release();
+                    voice.filter_cut_envelope.release();
+                    voice.filter_res_envelope.release();
                 }
             }
         }
@@ -706,7 +720,15 @@ impl SubSynth {
     fn waveform(&self) -> Waveform {
         self.params.waveform.value()
     }
-    
+    fn clip(value: f32, min: f32, max: f32) -> f32 {
+        if value < min {
+            min
+        } else if value > max {
+            max
+        } else {
+            value
+        }
+    }
 }
 
 const fn compute_fallback_voice_id(note: u8, channel: u8) -> i32 {
