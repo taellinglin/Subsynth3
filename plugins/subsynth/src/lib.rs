@@ -164,7 +164,7 @@ impl Default for SubSynthParams {
             )
             .with_step_size(0.1)
             .with_unit(" ms"),
-            filter_type: EnumParam::new("Filter Type", FilterType::Notch),
+            filter_type: EnumParam::new("Filter Type", FilterType::None),
             filter_cut: FloatParam::new(
                 "Filter Cutoff",
                 10000.0,
@@ -176,10 +176,10 @@ impl Default for SubSynthParams {
             .with_unit(" Hz"),
             filter_res: FloatParam::new(
                 "Filter Resonance",
-                0.0,
+                3.0,
                 FloatRange::Linear {
-                    min: -1000.0,
-                    max: 1000.0,
+                    min: 0.0,
+                    max: 10.0,
                 },
             )
             .with_unit(" Q"),
@@ -369,13 +369,16 @@ impl Plugin for SubSynth {
                                 let initial_phase: f32 = self.prng.gen();
                                 // This starts with the attack portion of the amplitude envelope
                                 let amp_envelope = ADSREnvelope::new(self.params.amp_attack_ms.value(), self.params.amp_decay_ms.value(), self.params.amp_sustain_level.value(), self.params.amp_release_ms.value());
-
+                                let cutoff_envelope = ADSREnvelope::new(self.params.filter_cut_attack_ms.value(),self.params.filter_cut_decay_ms.value(), self.params.filter_cut_sustain_ms.value(), self.params.filter_cut_release_ms.value());
+                                let resonance_envelope = ADSREnvelope::new(self.params.filter_res_attack_ms.value(),self.params.filter_res_decay_ms.value(), self.params.filter_res_sustain_ms.value(), self.params.filter_res_release_ms.value());
                                 let voice =
                                     self.start_voice(context, timing, voice_id, channel, note);
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
                                 voice.phase_delta = util::midi_note_to_freq(note) / sample_rate;
                                 voice.amp_envelope = amp_envelope;
+                                voice.filter_cut_envelope = cutoff_envelope;
+                                voice.filter_res_envelope = resonance_envelope;
                             }
                             NoteEvent::NoteOff {
                                 timing: _,
@@ -536,7 +539,7 @@ impl Plugin for SubSynth {
                     .amp_envelope;
                     
                 
-                    
+                    let mut dc_blocker = filter::DCBlocker::new();
                     // Apply filter
                     let filter_type = self.params.filter_type.value();
                     let cutoff = self.params.filter_cut.value();
@@ -550,7 +553,7 @@ impl Plugin for SubSynth {
                     let _resonance_sustain = self.params.filter_res_sustain_ms.value();
                     let _resonance_release = self.params.filter_res_release_ms.value();
                     let waveform = self.params.waveform.value();
-                    let generated_sample = SubSynth::clip(generate_waveform(waveform, voice.phase), 1.0) ;  
+                    let generated_sample = generate_waveform(waveform, voice.phase) ;  
                     let mut filtered_sample = generate_filter(
                         filter_type,
                         cutoff,
@@ -561,21 +564,41 @@ impl Plugin for SubSynth {
                         sample_rate,
                     );
                     filtered_sample.set_sample_rate(sample_rate);
-                
-                    // Apply envelope to each sample of the waveform
                     for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value(sample_idx as f32 / sample_rate);
-                        let processed_sample = filtered_sample.process(SubSynth::clip(amp * generated_sample, 1.0));
-                
-                        output[0][sample_idx] += processed_sample;
-                        output[1][sample_idx] += processed_sample;
-                
-                        //generated_sample = generated_sample * amp;
+                        let inverse_sample_rate = 1.0 / sample_rate;
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value(sample_idx as f32 * inverse_sample_rate);
+                        let waveform = self.params.waveform.value();
+                        let sample = SubSynth::clip(generate_waveform(waveform, voice.phase) * amp, 1.0);                
                         voice.phase += voice.phase_delta;
                         if voice.phase >= 1.0 {
                             voice.phase -= 1.0;
                         }
+                    
+                        output[0][sample_idx] += sample;
+                        output[1][sample_idx] += sample;
                     }
+                    /*
+                    // Apply envelope to each sample of the waveform
+                    for (sample_idx, value) in (block_start..block_end).enumerate() {
+                        let inverse_sample_rate = 1.0 / sample_rate;
+                        let amp = voice.velocity_sqrt * gain[sample_idx] * voice.amp_envelope.get_value(sample_idx as f32 * inverse_sample_rate)+ self.params;
+                    
+                        let naive_waveform = 2.0 * (voice.phase - 0.5);  // naive sawtooth wave
+                        let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);  // apply PolyBLEP
+                        let generated_sample = corrected_waveform * amp;
+                        
+                        let processed_sample = filtered_sample.process(SubSynth::clip(generated_sample, 1.0));
+                        let processed_sample = amp * dc_blocker.process(processed_sample);
+                    
+                        output[0][sample_idx] += processed_sample;
+                        output[1][sample_idx] += processed_sample;
+                    
+                        voice.phase += voice.phase_delta;
+                        if voice.phase >= 1.0 {
+                            voice.phase -= 1.0;
+                        }
+                    }*/
+
             }
 
             // Terminate voices whose release period has fully ended. This could be done as part of
@@ -660,9 +683,9 @@ impl SubSynth {
             let voice = &mut self.voices[free_voice_idx];
             if voice.is_none() {
                 *voice = Some(new_voice);
-                voice.as_mut().unwrap().amp_envelope.trigger();
-                voice.as_mut().unwrap().filter_cut_envelope.trigger();
-                voice.as_mut().unwrap().filter_res_envelope.trigger();
+                //voice.as_mut().unwrap().amp_envelope.trigger();
+                //voice.as_mut().unwrap().filter_cut_envelope.trigger();
+                //voice.as_mut().unwrap().filter_res_envelope.trigger();
             }
             voice.as_mut().unwrap()
         } else {
@@ -698,9 +721,9 @@ impl SubSynth {
         for voice in self.voices.iter_mut() {
             if let Some(voice) = voice {
                 if voice_id == Some(voice.voice_id) || (channel == voice.channel && note == voice.note) {
-                    voice.amp_envelope.release();
-                    voice.filter_cut_envelope.release();
-                    voice.filter_res_envelope.release();
+                    //voice.amp_envelope.release();
+                    //voice.filter_cut_envelope.release();
+                    //voice.filter_res_envelope.release();
                 }
             }
         }
@@ -734,7 +757,7 @@ impl SubSynth {
                         channel,
                         note,
                     });
-                    //*voice = None;
+                    *voice = None;
 
                     if voice_id.is_some() {
                         return;
@@ -744,7 +767,7 @@ impl SubSynth {
             }
         }
     }
-    fn clip(input: f32, limit: f32) -> f32 {
+    pub fn clip(input: f32, limit: f32) -> f32 {
         if input > limit {
             limit
         } else if input < -limit {
@@ -753,6 +776,22 @@ impl SubSynth {
             input
         }
     }
+    pub fn poly_blep(t: f32, dt: f32) -> f32 {
+        if t < dt {
+            let t = t / dt;
+            // 2 * (t - t^2/2 - 0.5)
+            return t+t - t*t - 1.0;
+        }
+        else if t > 1.0 - dt {
+            let t = (t - 1.0) / dt;
+            // 2 * (t^2/2 + t + 0.5)
+            return t*t + t+t + 1.0;
+        }
+        0.0
+    }
+    
+
+    
     
     
 }
