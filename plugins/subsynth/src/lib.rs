@@ -368,9 +368,9 @@ impl Plugin for SubSynth {
                             } => {
                                 let initial_phase: f32 = self.prng.gen();
                                 // This starts with the attack portion of the amplitude envelope
-                                let amp_envelope = ADSREnvelope::new(self.params.amp_attack_ms.value(), self.params.amp_decay_ms.value(), self.params.amp_sustain_level.value(), self.params.amp_release_ms.value());
-                                let cutoff_envelope = ADSREnvelope::new(self.params.filter_cut_attack_ms.value(),self.params.filter_cut_decay_ms.value(), self.params.filter_cut_sustain_ms.value(), self.params.filter_cut_release_ms.value());
-                                let resonance_envelope = ADSREnvelope::new(self.params.filter_res_attack_ms.value(),self.params.filter_res_decay_ms.value(), self.params.filter_res_sustain_ms.value(), self.params.filter_res_release_ms.value());
+                                let amp_envelope = ADSREnvelope::new(self.params.amp_attack_ms.value(), self.params.amp_decay_ms.value(), self.params.amp_sustain_level.value(), self.params.amp_release_ms.value(), sample_rate);
+                                let cutoff_envelope = ADSREnvelope::new(self.params.filter_cut_attack_ms.value(),self.params.filter_cut_decay_ms.value(), self.params.filter_cut_sustain_ms.value(), self.params.filter_cut_release_ms.value(), sample_rate);
+                                let resonance_envelope = ADSREnvelope::new(self.params.filter_res_attack_ms.value(),self.params.filter_res_decay_ms.value(), self.params.filter_res_sustain_ms.value(), self.params.filter_res_release_ms.value(), sample_rate);
                                 let voice =
                                     self.start_voice(context, timing, voice_id, channel, note);
                                 voice.velocity_sqrt = velocity.sqrt();
@@ -565,18 +565,24 @@ impl Plugin for SubSynth {
                     );
                     filtered_sample.set_sample_rate(sample_rate);
                     for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
-                        let inverse_sample_rate = 1.0 / sample_rate;
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value(sample_idx as f32 * inverse_sample_rate);
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
                         let waveform = self.params.waveform.value();
                         let sample = SubSynth::clip(generate_waveform(waveform, voice.phase) * amp, 1.0);                
                         voice.phase += voice.phase_delta;
                         if voice.phase >= 1.0 {
                             voice.phase -= 1.0;
                         }
-                    
-                        output[0][sample_idx] += sample;
-                        output[1][sample_idx] += sample;
+                        let naive_waveform = sample;  // naive sawtooth wave
+                        let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);  // apply PolyBLEP
+                        let generated_sample = corrected_waveform * amp;
+                        
+                        let processed_sample = filtered_sample.process(SubSynth::clip(generated_sample, 1.0));
+                        let processed_sample = amp * dc_blocker.process(processed_sample);
+                        
+                        output[0][sample_idx] += processed_sample;
+                        output[1][sample_idx] += processed_sample;
                     }
+                    
                     /*
                     // Apply envelope to each sample of the waveform
                     for (sample_idx, value) in (block_start..block_end).enumerate() {
@@ -659,6 +665,7 @@ impl SubSynth {
                 self.params.amp_decay_ms.value(),
                 self.params.amp_sustain_level.value(),
                 self.params.amp_release_ms.value(),
+                192000.0
             ),
             voice_gain: None,
             filter_cut_envelope: ADSREnvelope::new(
@@ -666,12 +673,14 @@ impl SubSynth {
                 self.params.filter_cut_decay_ms.value(),
                 self.params.filter_cut_sustain_ms.value(),
                 self.params.filter_cut_release_ms.value(),
+                192000.0
             ),
             filter_res_envelope: ADSREnvelope::new(
                 self.params.filter_res_attack_ms.value(),
                 self.params.filter_res_decay_ms.value(),
                 self.params.filter_res_sustain_ms.value(),
                 self.params.filter_res_release_ms.value(),
+                192000.0
             ),
     
             filter: Some(self.params.filter_type.value()),
@@ -721,9 +730,9 @@ impl SubSynth {
         for voice in self.voices.iter_mut() {
             if let Some(voice) = voice {
                 if voice_id == Some(voice.voice_id) || (channel == voice.channel && note == voice.note) {
-                    //voice.amp_envelope.release();
-                    //voice.filter_cut_envelope.release();
-                    //voice.filter_res_envelope.release();
+                    voice.amp_envelope.release();
+                    voice.filter_cut_envelope.release();
+                    voice.filter_res_envelope.release();
                 }
             }
         }

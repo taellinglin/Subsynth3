@@ -2,7 +2,7 @@ use nih_plug::params::enums::{Enum};
 use enum_iterator::Sequence;
 use std::f32::consts::PI;
 pub trait Envelope {
-    fn get_value(&mut self, dt: f32) -> f32;
+    fn get_value(&mut self) -> f32;
     fn trigger(&mut self);
     fn release(&mut self);
 }
@@ -14,6 +14,8 @@ pub struct ADSREnvelope {
     release: f32,
     state: ADSREnvelopeState,
     time: f32,
+    delta_time_per_sample: f32, // add this new field
+    sample_rate: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Enum)]
@@ -28,7 +30,7 @@ pub enum ADSREnvelopeState {
 
 impl ADSREnvelope {
     
-    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32) -> Self {
+    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32, sample_rate: f32) -> Self {
         ADSREnvelope {
             attack,
             decay,
@@ -36,6 +38,8 @@ impl ADSREnvelope {
             release,
             state: ADSREnvelopeState::Attack,
             time: 0.0,
+            sample_rate,
+            delta_time_per_sample: 1.0 / sample_rate, // calculate the delta_time_per_sample
         }
     }
     pub fn get_time(&mut self) -> f32{
@@ -70,11 +74,12 @@ impl ADSREnvelope {
             ADSREnvelopeState::Release => self.sustain * (1.0 - (self.time / self.release)),
         }
     }
+    
 }
 
 impl Envelope for ADSREnvelope {
-    fn get_value(&mut self, dt: f32) -> f32 {
-        self.time += dt;
+    fn get_value(&mut self) -> f32 {
+        self.time += self.delta_time_per_sample;
         // Check if the envelope has completed and move to the next stage
         if self.state != ADSREnvelopeState::Idle && self.time >= self.release {
             self.state = ADSREnvelopeState::Idle;
@@ -181,8 +186,8 @@ impl HighpassFilter {
 
 impl Filter for HighpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
-        let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
+        let cutoff = self.cutoff * self.cutoff_envelope.get_value();
+        let resonance = self.resonance * self.resonance_envelope.get_value();
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
         let output = c * (input - self.prev_input + r * self.prev_output);
@@ -221,8 +226,8 @@ impl BandpassFilter {
 }
 impl Filter for BandpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
-        let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
+        let cutoff = self.cutoff * self.cutoff_envelope.get_value();
+        let resonance = self.resonance * self.resonance_envelope.get_value();
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
         let output = c * (input - self.prev_output) + r * self.prev_output;
@@ -263,8 +268,8 @@ impl LowpassFilter {
 
 impl Filter for LowpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
-        let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
+        let cutoff = self.cutoff * self.cutoff_envelope.get_value();
+        let resonance = self.resonance * self.resonance_envelope.get_value();
 
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = resonance;
@@ -341,8 +346,8 @@ impl NotchFilter {
 
 impl Filter for NotchFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
-        let bandwidth = self.bandwidth * self.bandwidth_envelope.get_value(self.bandwidth_envelope.time);
+        let cutoff = self.cutoff * self.cutoff_envelope.get_value();
+        let bandwidth = self.bandwidth * self.bandwidth_envelope.get_value();
 
         if cutoff != self.cutoff || bandwidth != self.bandwidth {
             self.cutoff = cutoff;
@@ -398,8 +403,8 @@ impl StatevariableFilter {
 
 impl Filter for StatevariableFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff * self.cutoff_envelope.get_value(self.cutoff_envelope.time);
-        let resonance = self.resonance * self.resonance_envelope.get_value(self.resonance_envelope.time);
+        let cutoff = self.cutoff * self.cutoff_envelope.get_value();
+        let resonance = self.resonance * self.resonance_envelope.get_value();
 
         let f = cutoff / self.sample_rate;
         let _k = 2.0 * (1.0 - resonance);
