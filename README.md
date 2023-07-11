@@ -3,6 +3,8 @@
 [![Automated builds](https://github.com/robbert-vdh/nih-plug/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/robbert-vdh/nih-plug/actions/workflows/build.yml?query=branch%3Amaster)
 [![Tests](https://github.com/robbert-vdh/nih-plug/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/robbert-vdh/nih-plug/actions/workflows/test.yml?query=branch%3Amaster)
 [![Docs](https://github.com/robbert-vdh/nih-plug/actions/workflows/docs.yml/badge.svg?branch=master)](https://nih-plug.robbertvanderhelm.nl/)
+
+
 SubSynth是一种实现为VST3/CLAP插件的减法合成器。它利用ADSR包络和不同的波形类型产生各种声音。它非常适合电子音乐和声音设计，提供一系列的表现控制参数进行详细的声音塑造。
 ![image](https://github.com/taellinglin/Subsynth3/assets/82527149/3992ff6e-7c09-4e86-8658-395a7688cafb)
 
