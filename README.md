@@ -3,7 +3,47 @@
 [![Automated builds](https://github.com/robbert-vdh/nih-plug/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/robbert-vdh/nih-plug/actions/workflows/build.yml?query=branch%3Amaster)
 [![Tests](https://github.com/robbert-vdh/nih-plug/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/robbert-vdh/nih-plug/actions/workflows/test.yml?query=branch%3Amaster)
 [![Docs](https://github.com/robbert-vdh/nih-plug/actions/workflows/docs.yml/badge.svg?branch=master)](https://nih-plug.robbertvanderhelm.nl/)
+SubSynth是一种实现为VST3/CLAP插件的减法合成器。它利用ADSR包络和不同的波形类型产生各种声音。它非常适合电子音乐和声音设计，提供一系列的表现控制参数进行详细的声音塑造。
 
+构建
+
+SubSynth使用Rust编写并使用Cargo构建。在构建之前，请确保您已安装了最新的Rust编译器和Cargo包管理器。您可以从官方的Rust网站上安装它们。
+
+一旦您安装了Rust和Cargo，就可以克隆SubSynth仓库并导航到其目录：
+```bash
+git clone https://github.com/taellinglin/Subsynth3.git
+cd Subsynth3
+```
+然后，您可以使用以下命令构建SubSynth：
+```bash
+cargo xtask bundle subsynth --release
+```
+这将会创建一个合成器的发布构建。
+## 参数
+
+SubSynth为您提供各种参数以形塑声音输出：
+
+- **增益**：控制合成器的整体音量。
+  
+- **攻击**：设置触发后一个音符达到峰值水平所需的时间。
+  
+- **释放**：确定音符在被释放后衰减为无声的时间。
+  
+- **波形**：让您选择用于声音生成的波形类型（正弦，方波，锯齿波和三角波）。
+  
+- **衰减**：定义声音从峰值水平转变到持续水平的时间。
+  
+- **持续**：定义声音在其主要部分的持续时间内的水平。
+  
+- **滤波器类型**：设置应用于音频信号的滤波器类型（无，低通，高通，带通）。
+  
+- **滤波器截止频率**：定义滤波器开始起作用的频率。
+  
+- **滤波器谐振**：放大滤波器截止点附近的频率。
+  
+- **滤波器截止攻击/衰减/持续/释放**：这些参数控制滤波器截止的包络。他们确定滤波器打开和关闭的速度，使您能够塑造声音的音调特性。
+  
+- **滤波器谐振攻击/衰减/持续/释放**：这些参数控制滤波器谐振的包络。他们使您可以在音符的持续时间内动态地控制滤波器的共振峰。
 # Overview
 
 SubSynth is a subtractive synthesizer implemented as a VST3/CLAP plugin. It leverages ADSR envelopes and different waveform types to produce a variety of sounds. It's perfect for electronic music and sound design, providing a range of expressive control parameters for detailed sound sculpting.
@@ -49,3 +89,5 @@ SubSynth provides a variety of parameters for you to shape the sound output:
 - **Filter Cut Attack/Decay/Sustain/Release**: These parameters control the envelope of the filter cutoff. They determine how quickly the filter opens and closes, allowing you to shape the tonal character of the sound.
   
 - **Filter Res Attack/Decay/Sustain/Release**: These parameters control the envelope of the filter resonance. They allow you to dynamically control the resonant peak of the filter over the duration of the note.
+
+
