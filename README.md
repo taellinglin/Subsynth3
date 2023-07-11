@@ -8,6 +8,8 @@
 SubSynth是一种实现为VST3/CLAP插件的减法合成器。它利用ADSR包络和不同的波形类型产生各种声音。它非常适合电子音乐和声音设计，提供一系列的表现控制参数进行详细的声音塑造。
 ![image](https://github.com/taellinglin/Subsynth3/assets/82527149/3992ff6e-7c09-4e86-8658-395a7688cafb)
 https://soundcloud.com/taellinglin/8kwealj94t22 
+
+
 构建
 
 SubSynth使用Rust编写并使用Cargo构建。在构建之前，请确保您已安装了最新的Rust编译器和Cargo包管理器。您可以从官方的Rust网站上安装它们。
