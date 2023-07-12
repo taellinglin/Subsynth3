@@ -44,14 +44,14 @@ param-button:hover {
 }
 
 param-button:checked {
-  background-color: #F1C40F; /* Yellow when checked */
+  background-color: #ffffff; /* Yellow when checked */
   transition: background-color 0.1 0;
 }
 
 param-slider {
   height: 30px;
   width: 180px;
-  border-color: #DAA520; /* Border color - gold */
+  border-color: #ffffff; /* Border color - gold */
   border-width: 1px;
   background-color: #3D3D3D; /* Slider background color - darker gray */
   transition: background-color 0.1 0;
@@ -104,7 +104,7 @@ peak-meter .ticks__label {
 
 resize-handle {
   bottom: 0;
-  color: #F1C40F; /* Resize handle color - yellow */
+  color: #ff0000; /* Resize handle color - yellow */
   height: 20px;
   left: 1s;
   opacity: 0.4;
