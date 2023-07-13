@@ -115,7 +115,7 @@ impl Default for SubSynthParams {
             editor_state: editor::default_state(),
             gain: FloatParam::new(
                 "Gain",
-                util::db_to_gain(-12.0),
+                util::db_to_gain(-36.0),
                 FloatRange::Linear {
                     min: util::db_to_gain(-36.0),
                     max: util::db_to_gain(0.0),
@@ -128,10 +128,10 @@ impl Default for SubSynthParams {
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
             amp_attack_ms: FloatParam::new(
                 "Attack",
-                500.0,
+                10.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -139,10 +139,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             amp_release_ms: FloatParam::new(
                 "Release",
-                500.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -151,10 +151,10 @@ impl Default for SubSynthParams {
             waveform: EnumParam::new("Waveform", Waveform::Sine),
             amp_decay_ms: FloatParam::new(
                 "Decay",
-                2000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -162,10 +162,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             amp_sustain_level: FloatParam::new(
                 "Sustain",
-                1000.0,
+                1.0,
                 FloatRange::Skewed {
-                    min: -1000.0,
-                    max: 1000.0,
+                    min: 0.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -177,7 +177,7 @@ impl Default for SubSynthParams {
                 10000.0,
                 FloatRange::Linear {
                     min: 20.0,
-                    max: 20000.0,
+                    max: 192000.0,
                 },
             )
             .with_unit(" Hz"),
@@ -192,10 +192,10 @@ impl Default for SubSynthParams {
             .with_unit(" Q"),
             filter_cut_attack_ms: FloatParam::new(
                 "Filter Cut Attack",
-                200.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -203,10 +203,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_decay_ms: FloatParam::new(
                 "Filter Cut Decay",
-                2000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -214,10 +214,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_sustain_ms: FloatParam::new(
                 "Filter Cut Sustain",
-                1000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 5000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -225,10 +225,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_release_ms: FloatParam::new(
                 "Filter Cut Release",
-                1000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -236,10 +236,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_res_attack_ms: FloatParam::new(
                 "Filter Resonance Attack",
-                2000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -247,10 +247,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_res_decay_ms: FloatParam::new(
                 "Filter Resonance Decay",
-                2000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -258,21 +258,21 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_res_sustain_ms: FloatParam::new(
                 "Filter Resonance Sustain",
-                1000.0,
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 5000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
             .with_step_size(0.1)
             .with_unit(" ms"),
             filter_res_release_ms: FloatParam::new(
-                "Filter Resonance Decay",
-                200.0,
+                "Filter Resonance Release",
+                1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 2000.0,
+                    max: 1.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -905,9 +905,13 @@ impl SubSynth {
     
     
     
-    
-    
-    
+    fn compute_fallback_voice_id(note: u8, channel: u8, next_voice_id: i32) -> i32 {
+        // Fallback voice ID computation...
+        // Modify this function to generate a unique voice ID based on note, channel, and next_voice_id.
+        // Example implementation:
+        (note as i32) + (channel as i32) + next_voice_id
+    }
+
     fn find_or_create_voice(
         &mut self,
         voice_id: Option<i32>,
@@ -924,10 +928,17 @@ impl SubSynth {
         }) {
             return self.voices[existing_index].as_mut().unwrap();
         }
-    
+
+        // If no existing voice found, create a new voice
+        let new_voice_id = voice_id.unwrap_or_else(|| {
+            // Generate a fallback voice ID
+            self.next_voice_index += 1;
+            Self::compute_fallback_voice_id(note, channel, self.next_voice_index.try_into().unwrap())
+        });
+
         // If no existing voice found, create a new voice
         let new_voice = Voice {
-            voice_id: voice_id.unwrap_or_else(|| compute_fallback_voice_id(note, channel)),
+            voice_id: new_voice_id,
             channel,
             note,
             internal_voice_id: self.next_internal_voice_id,
@@ -968,31 +979,25 @@ impl SubSynth {
             tuning: 0.0,
             vibrato: 0.0,
         };
-    
+
         // Find the next available slot for a new voice
         let mut next_voice_index = self.next_voice_index;
         while self.voices[next_voice_index].is_some() {
-            next_voice_index = (next_voice_index + 1) % NUM_VOICES as usize;
+            next_voice_index = (next_voice_index + 1) % NUM_VOICES;
             if next_voice_index == self.next_voice_index {
                 panic!("No available slots for new voices");
             }
         }
-    
+
         // Store the new voice in the found slot
         self.voices[next_voice_index] = Some(new_voice);
-    
+
         // Update the next available slot index
         self.next_voice_index = next_voice_index;
-    
-        // Increment the internal voice ID for the next voice
-        self.next_internal_voice_id += 1;
-    
+
         // Return a mutable reference to the newly created voice
         self.voices[next_voice_index].as_mut().unwrap()
     }
-    
-    
-    
     
     
     
