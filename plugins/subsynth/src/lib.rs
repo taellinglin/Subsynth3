@@ -128,10 +128,10 @@ impl Default for SubSynthParams {
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
             amp_attack_ms: FloatParam::new(
                 "Attack",
-                10.0,
+                100.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 2000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -139,10 +139,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             amp_release_ms: FloatParam::new(
                 "Release",
-                1.0,
+                500.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 1000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -162,10 +162,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             amp_sustain_level: FloatParam::new(
                 "Sustain",
-                1.0,
+                1000.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 2000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -183,10 +183,10 @@ impl Default for SubSynthParams {
             .with_unit(" Hz"),
             filter_res: FloatParam::new(
                 "Filter Resonance",
-                3.0,
+                30.0,
                 FloatRange::Linear {
                     min: 0.0,
-                    max: 10.0,
+                    max: 100.0,
                 },
             )
             .with_unit(" Q"),
@@ -195,7 +195,7 @@ impl Default for SubSynthParams {
                 1.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 2000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -203,7 +203,7 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_decay_ms: FloatParam::new(
                 "Filter Cut Decay",
-                1.0,
+                0.5,
                 FloatRange::Skewed {
                     min: 0.0,
                     max: 1.0,
@@ -214,10 +214,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_sustain_ms: FloatParam::new(
                 "Filter Cut Sustain",
-                1.0,
+                1000.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 1000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -225,10 +225,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_cut_release_ms: FloatParam::new(
                 "Filter Cut Release",
-                1.0,
+                500.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 1000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
@@ -236,10 +236,10 @@ impl Default for SubSynthParams {
             .with_unit(" ms"),
             filter_res_attack_ms: FloatParam::new(
                 "Filter Resonance Attack",
-                1.0,
+                100.0,
                 FloatRange::Skewed {
                     min: 0.0,
-                    max: 1.0,
+                    max: 2000.0,
                     factor: FloatRange::skew_factor(-1.0),
                 },
             )
