@@ -88,6 +88,45 @@ impl ADSREnvelope {
             ADSREnvelopeState::Release => self.sustain * (1.0 - (self.time / self.release)),
         }
     }
+    pub fn advance(&mut self) {
+        self.time += self.delta_time_per_sample;
+
+        // Adjust envelope parameters based on velocity sensitivity
+        let velocity_sensitive_attack = self.attack / self.velocity;
+        let velocity_sensitive_decay = self.decay / self.velocity;
+        let velocity_sensitive_release = self.release / self.velocity;
+
+        // Check if the envelope has completed and move to the next stage
+        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
+            self.state = ADSREnvelopeState::Idle;
+            self.time = 0.0;
+        } else {
+            match self.state {
+                ADSREnvelopeState::Attack => {
+                    if self.time >= velocity_sensitive_attack {
+                        self.state = ADSREnvelopeState::Decay;
+                        self.time = 0.0;
+                    }
+                }
+                ADSREnvelopeState::Decay => {
+                    if self.time >= velocity_sensitive_decay {
+                        self.state = ADSREnvelopeState::Sustain;
+                        self.time = 0.0;
+                    }
+                }
+                ADSREnvelopeState::Sustain => {
+                    // No change in state during sustain
+                }
+                ADSREnvelopeState::Release => {
+                    if self.time >= velocity_sensitive_release {
+                        self.state = ADSREnvelopeState::Idle;
+                        self.time = 0.0;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
     
 }
 

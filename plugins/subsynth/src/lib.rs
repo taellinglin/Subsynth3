@@ -420,7 +420,8 @@ impl Plugin for SubSynth {
                                 );
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
-                                voice.phase_delta = util::midi_note_to_freq(note) / sample_rate;
+                                let pitch = util::midi_note_to_freq(note) * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
+                                voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
                                 voice.filter_cut_envelope = cutoff_envelope;
                                 voice.filter_res_envelope = resonance_envelope;
@@ -639,102 +640,95 @@ impl Plugin for SubSynth {
             // TODO: Filter
             for (value_idx, sample_idx) in (block_start..block_end).enumerate() {
                 // Get mutable reference to the voice at sample_idx
-                if let Some(voice) = self.voices.get_mut(sample_idx).and_then(Option::as_mut) {
-                    // Depending on whether the voice has polyphonic modulation applied to it,
-                    // either the global parameter values are used, or the voice's smoother is used
-                    // to generate unique modulated values for that voice
-                    let gain = match &voice.voice_gain {
-                        Some((_, smoother)) => {
-                            smoother.next_block(&mut voice_gain, block_len);
-                            &voice_gain
-                        }
-                        None => &gain,
-                    };
-            
-                    // This is an exponential smoother repurposed as an AR envelope with values between
-                    // 0 and 1. When a note off event is received, this envelope will start fading out
-                    // again. When it reaches 0, we will terminate the voice.
-                    voice.amp_envelope;
-            
-                    let mut dc_blocker = filter::DCBlocker::new();
-                    // Apply filter
-                    let filter_type = self.params.filter_type.value();
-                    let cutoff = self.params.filter_cut.value();
-                    let resonance = self.params.filter_res.value();
-                    let _cutoff_attack = self.params.filter_cut_attack_ms.value();
-                    let _cutoff_decay = self.params.filter_cut_decay_ms.value();
-                    let _cutoff_sustain = self.params.filter_cut_sustain_ms.value();
-                    let _cutoff_release = self.params.filter_cut_release_ms.value();
-                    let _resonance_attack = self.params.filter_res_attack_ms.value();
-                    let _resonance_decay = self.params.filter_res_decay_ms.value();
-                    let _resonance_sustain = self.params.filter_res_sustain_ms.value();
-                    let _resonance_release = self.params.filter_res_release_ms.value();
-                    let waveform = self.params.waveform.value();
-            
-                    // Calculate panning based on voice's pan value
-                    let pan = voice.pan;
-                    let left_amp = (1.0 - pan).sqrt();
-                    let right_amp = pan.sqrt();
-            
-                    // Generate waveform for voice
-                    let generated_sample = generate_waveform(waveform, voice.phase);
-            
-                    // Apply filters to the generated sample
-                    let mut filtered_sample = generate_filter(
-                        filter_type,
-                        cutoff,
-                        resonance,
-                        voice.filter_cut_envelope,
-                        voice.filter_res_envelope,
-                        generated_sample,
-                        sample_rate,
-                    );
-                    filtered_sample.set_sample_rate(sample_rate);
-            
-                    // Calculate amplitude for voice
-                    let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
-            
-                    // Apply voice-specific processing
-                    let naive_waveform = filtered_sample.process(generated_sample);
-                    let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);
-                    let generated_sample = corrected_waveform * amp;
-            
-                    // Apply panning and process the sample
-                    let processed_sample = dc_blocker.process(generated_sample);
-                    let processed_left_sample = left_amp * processed_sample;
-                    let processed_right_sample = right_amp * processed_sample;
-            
-                    // Add the processed sample to the output channels
-                    output[0][sample_idx] += processed_left_sample;
-                    output[1][sample_idx] += processed_right_sample;
-            
-                    // Update voice phase
-                    voice.phase += voice.phase_delta;
-                    if voice.phase >= 1.0 {
-                        voice.phase -= 1.0;
-                    }
-                }
-            
-
-                // Terminate voices whose release period has fully ended. This could be done as part of
-                // the previous loop but this is simpler.
                 for voice in self.voices.iter_mut() {
-                    match voice {
-                        Some(v) if v.releasing && v.amp_envelope.previous_value() == 0.0 => {
-                            // This event is very important, as it allows the host to manage its own modulation
-                            // voices
-                            context.send_event(NoteEvent::VoiceTerminated {
-                                timing: block_end as u32,
-                                voice_id: Some(v.voice_id),
-                                channel: v.channel,
-                                note: v.note,
-                            });
-                            *voice = None;
+                    if let Some(voice) = voice {
+                        // Depending on whether the voice has polyphonic modulation applied to it,
+                        // either the global parameter values are used, or the voice's smoother is used
+                        // to generate unique modulated values for that voice
+                        let gain = match &voice.voice_gain {
+                            Some((_, smoother)) => {
+                                smoother.next_block(&mut voice_gain, block_len);
+                                &voice_gain
+                            }
+                            None => &gain,
+                        };
+            
+                        // This is an exponential smoother repurposed as an AR envelope with values between
+                        // 0 and 1. When a note off event is received, this envelope will start fading out
+                        // again. When it reaches 0, we will terminate the voice.
+                        voice.amp_envelope.advance();
+            
+                        let mut dc_blocker = filter::DCBlocker::new();
+                        // Apply filter
+                        let filter_type = self.params.filter_type.value();
+                        let cutoff = self.params.filter_cut.value();
+                        let resonance = self.params.filter_res.value();
+                        let waveform = self.params.waveform.value();
+            
+                        // Calculate panning based on voice's pan value
+                        let pan = voice.pan;
+                        let left_amp = (1.0 - pan).sqrt() as f32;
+                        let right_amp = pan.sqrt() as f32;
+            
+                        // Generate waveform for voice
+                        let generated_sample = generate_waveform(waveform, voice.phase);
+            
+                        // Apply filters to the generated sample
+                        let mut filtered_sample = generate_filter(
+                            filter_type,
+                            cutoff,
+                            resonance,
+                            voice.filter_cut_envelope,
+                            voice.filter_res_envelope,
+                            generated_sample,
+                            sample_rate,
+                        );
+                        filtered_sample.set_sample_rate(sample_rate);
+            
+                        // Calculate amplitude for voice
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
+            
+                        // Apply voice-specific processing
+                        let naive_waveform = filtered_sample.process(generated_sample);
+                        let corrected_waveform =
+                            naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);
+                        let generated_sample = corrected_waveform * amp;
+            
+                        // Apply panning and process the sample
+                        let processed_sample = dc_blocker.process(generated_sample);
+                        let processed_left_sample = left_amp * processed_sample;
+                        let processed_right_sample = right_amp * processed_sample;
+            
+                        // Add the processed sample to the output channels
+                        output[0][sample_idx] += processed_left_sample;
+                        output[1][sample_idx] += processed_right_sample;
+            
+                        // Update voice phase
+                        voice.phase += voice.phase_delta;
+                        if voice.phase >= 1.0 {
+                            voice.phase -= 1.0;
                         }
-                        _ => (),
                     }
                 }
             }
+            
+            // Terminate voices whose release period has fully ended. This could be done as part of
+            // the previous loop but this is simpler.
+            for voice in &mut self.voices {
+                if let Some(v) = voice {
+                    if v.releasing && v.amp_envelope.previous_value() == 0.0 {
+                        context.send_event(NoteEvent::VoiceTerminated {
+                            timing: block_end as u32,
+                            voice_id: Some(v.voice_id),
+                            channel: v.channel,
+                            note: v.note,
+                        });
+                        *voice = None;
+                    }
+                }
+            }
+            
+            
 
             // And then just keep processing blocks until we've run out of buffer to fill
             block_start = block_end;
@@ -872,7 +866,7 @@ impl SubSynth {
         pressure: f32,
     ) {
         // Find the voice associated with the given voice_id or create a new voice
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, 0.0);
         
         // Adjust the voice parameters based on the pressure value
         let velocity = pressure; // Assuming pressure represents velocity here
@@ -917,6 +911,11 @@ impl SubSynth {
         voice_id: Option<i32>,
         channel: u8,
         note: u8,
+        pan: f32,
+        brightness: f32,
+        expression: f32,
+        tuning: f32,
+        vibrato: f32,
     ) -> &mut Voice {
         // Search for an existing voice with the given voice_id
         if let Some(existing_index) = self.voices.iter().position(|voice| {
@@ -973,11 +972,11 @@ impl SubSynth {
                 1.0,
             ),
             filter: Some(FilterType::Lowpass),
-            pan: 0.0,
-            brightness: 1.0,
-            expression: 1.0,
-            tuning: 0.0,
-            vibrato: 0.0,
+            pan,
+            brightness,
+            expression,
+            tuning,
+            vibrato,
         };
 
         // Find the next available slot for a new voice
@@ -1009,7 +1008,7 @@ impl SubSynth {
         note: u8,
         gain: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, 0.0);
         voice.velocity = gain;
         voice.velocity_sqrt = gain.sqrt();
         voice.amp_envelope.set_velocity(gain); // Set velocity for the amp envelope
@@ -1023,7 +1022,7 @@ impl SubSynth {
         note: u8,
         pan: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, pan, 0.0, 0.0, 0.0, 0.0);
         voice.pan = pan;
     }
     
@@ -1035,7 +1034,7 @@ impl SubSynth {
         note: u8,
         tuning: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, tuning, 0.0);
         voice.tuning = tuning;
     }
     
@@ -1047,7 +1046,7 @@ impl SubSynth {
         note: u8,
         vibrato: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, vibrato);
         voice.vibrato = vibrato;
     }
     
@@ -1059,7 +1058,7 @@ impl SubSynth {
         note: u8,
         expression: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, expression, 0.0, 0.0);
         voice.expression = expression;
     }
     
@@ -1071,7 +1070,7 @@ impl SubSynth {
         note: u8,
         brightness: f32,
     ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note);
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, brightness, 0.0, 0.0, 0.0);
         voice.brightness = brightness;
     }
     
