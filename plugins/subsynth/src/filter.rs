@@ -16,6 +16,7 @@ pub struct ADSREnvelope {
     time: f32,
     delta_time_per_sample: f32, // add this new field
     sample_rate: f32,
+    velocity: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Enum)]
@@ -30,7 +31,7 @@ pub enum ADSREnvelopeState {
 
 impl ADSREnvelope {
     
-    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32, sample_rate: f32) -> Self {
+    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32, sample_rate: f32, velocity: f32) -> Self {
         ADSREnvelope {
             attack,
             decay,
@@ -40,7 +41,20 @@ impl ADSREnvelope {
             time: 0.0,
             sample_rate,
             delta_time_per_sample: 1.0 / sample_rate, // calculate the delta_time_per_sample
+            velocity,
         }
+    }
+    pub fn set_velocity(&mut self, velocity: f32) {
+        self.velocity = velocity;
+
+        // Adjust envelope parameters based on velocity
+        // Example: Modify attack and release times based on velocity
+        self.attack *= velocity;
+        self.release *= velocity;
+        self.decay *= velocity;
+        self.sustain *= velocity;
+
+        // Additional adjustments based on velocity if needed
     }
     pub fn get_time(&mut self) -> f32{
         self.time
@@ -80,16 +94,23 @@ impl ADSREnvelope {
 impl Envelope for ADSREnvelope {
     fn get_value(&mut self) -> f32 {
         self.time += self.delta_time_per_sample;
+
+        // Adjust envelope parameters based on velocity sensitivity
+        let velocity_sensitive_attack = self.attack / self.velocity;
+        let velocity_sensitive_decay = self.decay / self.velocity;
+        let velocity_sensitive_release = self.release / self.velocity;
+
         // Check if the envelope has completed and move to the next stage
-        if self.state != ADSREnvelopeState::Idle && self.time >= self.release {
+        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
             self.state = ADSREnvelopeState::Idle;
             self.time = 0.0;
         }
+
         let value = match self.state {
             ADSREnvelopeState::Idle => 0.0,
             ADSREnvelopeState::Attack => {
-                let attack_value = self.time / self.attack;
-                if self.time >= self.attack {
+                let attack_value = self.time / velocity_sensitive_attack;
+                if self.time >= velocity_sensitive_attack {
                     self.state = ADSREnvelopeState::Decay;
                     self.time = 0.0;
                     1.0
@@ -98,8 +119,9 @@ impl Envelope for ADSREnvelope {
                 }
             }
             ADSREnvelopeState::Decay => {
-                let decay_value = 1.0 - (1.0 - self.sustain) * (self.time / self.decay);
-                if self.time >= self.decay {
+                let decay_value =
+                    1.0 - (1.0 - self.sustain) * (self.time / velocity_sensitive_decay);
+                if self.time >= velocity_sensitive_decay {
                     self.state = ADSREnvelopeState::Sustain;
                     self.time = 0.0;
                     self.sustain
@@ -109,8 +131,9 @@ impl Envelope for ADSREnvelope {
             }
             ADSREnvelopeState::Sustain => self.sustain,
             ADSREnvelopeState::Release => {
-                let release_value = self.sustain * (1.0 - (self.time / self.release));
-                if self.time >= self.release {
+                let release_value =
+                    self.sustain * (1.0 - (self.time / velocity_sensitive_release));
+                if self.time >= velocity_sensitive_release {
                     self.state = ADSREnvelopeState::Idle;
                     self.time = 0.0;
                     0.0
@@ -121,7 +144,7 @@ impl Envelope for ADSREnvelope {
         };
 
         // Check if the envelope has completed and move to the next stage
-        if self.state != ADSREnvelopeState::Idle && self.time >= self.release {
+        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
             self.state = ADSREnvelopeState::Idle;
             self.time = 0.0;
         }
