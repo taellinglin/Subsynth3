@@ -374,7 +374,7 @@ impl Plugin for SubSynth {
                                 note,
                                 velocity,
                             } => {
-                                let pan: f32 = 0.0;
+                                let pan: f32 = 0.5;
                                 let brightness: f32 = 1.0;
                                 let expression: f32 = 1.0;
                                 let vibrato: f32 = 0.0;
@@ -418,6 +418,7 @@ impl Plugin for SubSynth {
                                     vibrato, // Add vibrato parameter
                                     tuning,
                                 );
+                                
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
                                 let pitch = util::midi_note_to_freq(note) * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
@@ -426,6 +427,7 @@ impl Plugin for SubSynth {
                                 voice.filter_cut_envelope = cutoff_envelope;
                                 voice.filter_res_envelope = resonance_envelope;
                                 voice.velocity = velocity;
+                                voice.pan = pan;
 
                             }
                             NoteEvent::NoteOff {
@@ -667,8 +669,8 @@ impl Plugin for SubSynth {
             
                         // Calculate panning based on voice's pan value
                         let pan = voice.pan;
-                        let left_amp = (1.0 - pan).sqrt() as f32;
-                        let right_amp = pan.sqrt() as f32;
+                        let left_amp = (1.0 - voice.pan).sqrt() as f32;
+                        let right_amp = voice.pan.sqrt() as f32;
             
                         // Generate waveform for voice
                         let generated_sample = generate_waveform(waveform, voice.phase);
