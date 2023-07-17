@@ -11,7 +11,7 @@ use rand_pcg::Pcg32;
 use std::sync::Arc;
 
 use envelope::{ADSREnvelope, Envelope, ADSREnvelopeState};
-use filter::{generate_filter, FilterType};
+use filter::{generate_filter, FilterType, Filter};
 use waveform::{generate_waveform, Waveform};
 
 const NUM_VOICES: usize = 16;
@@ -658,17 +658,21 @@ impl Plugin for SubSynth {
                         voice.filter_cut_envelope.set_scale(self.params.filter_cut_envelope_level.value());
                         voice.filter_res_envelope.set_scale(self.params.filter_res_envelope_level.value());
                         voice.amp_envelope.set_scale(self.params.amp_envelope_level.value());
+        
                         // Apply filters to the generated sample
-                        let mut filtered_sample = generate_filter(
-                            filter_type,
-                            cutoff,
-                            resonance,
-                            voice.filter_cut_envelope,
-                            voice.filter_res_envelope,
-                            generated_sample,
-                            sample_rate,
-                        );
-                        filtered_sample.set_sample_rate(sample_rate);
+                        let mut filtered_sample= generate_filter(
+                                filter_type,
+                                cutoff,
+                                resonance,
+                                &mut voice.filter_cut_envelope,
+                                &mut voice.filter_res_envelope,
+                                generated_sample,
+                                sample_rate,
+                            );
+                        
+
+
+                        //filtered_sample.set_sample_rate(sample_rate);
                         voice.filter_cut_envelope.advance();
                         voice.filter_res_envelope.advance();
                         voice.amp_envelope.advance();
@@ -677,7 +681,7 @@ impl Plugin for SubSynth {
                         let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
             
                         // Apply voice-specific processing
-                        let naive_waveform = filtered_sample.process(generated_sample);
+                        let naive_waveform = filtered_sample;
                         let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);
                         let generated_sample = corrected_waveform * amp;
             
