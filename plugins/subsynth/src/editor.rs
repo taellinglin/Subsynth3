@@ -1,6 +1,3 @@
-
-
-
 use nih_plug::prelude::{Editor};
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
@@ -85,6 +82,7 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res);
+                
             });
             
 
@@ -117,6 +115,12 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.amp_release_ms);
+                Label::new(cx, "Envelope Level")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.amp_envelope_level);
             });
 
             VStack::new(cx, |cx| {
@@ -148,10 +152,13 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_cut_release_ms);
-            })
-            .row_between(Pixels(0.0))
-            .child_left(Stretch(1.0))
-            .child_right(Stretch(1.0));
+                Label::new(cx, "Amount")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_cut_envelope_level);
+            });
             VStack::new(cx, |cx| {
                 Label::new(cx, "Filter Q Atk")
                     .height(Pixels(20.0))
@@ -182,6 +189,12 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res_release_ms);
+                Label::new(cx, "Amount")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res_envelope_level);
             })
             
             .row_between(Pixels(0.0))

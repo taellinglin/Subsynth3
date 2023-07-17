@@ -1,208 +1,8 @@
-use nih_plug::params::enums::{Enum};
 use enum_iterator::Sequence;
+use nih_plug::params::enums::Enum;
 use std::f32::consts::PI;
-pub trait Envelope {
-    fn get_value(&mut self) -> f32;
-    fn trigger(&mut self);
-    fn release(&mut self);
-}
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ADSREnvelope {
-    attack: f32,
-    decay: f32,
-    sustain: f32,
-    release: f32,
-    state: ADSREnvelopeState,
-    time: f32,
-    delta_time_per_sample: f32, // add this new field
-    sample_rate: f32,
-    velocity: f32,
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Enum)]
-pub enum ADSREnvelopeState {
-    Idle,
-    Attack,
-    Decay,
-    Sustain,
-    Release,
-}
-
-
-impl ADSREnvelope {
-    
-    pub fn new(attack: f32, decay: f32, sustain: f32, release: f32, sample_rate: f32, velocity: f32) -> Self {
-        ADSREnvelope {
-            attack,
-            decay,
-            sustain,
-            release,
-            state: ADSREnvelopeState::Attack,
-            time: 0.0,
-            sample_rate,
-            delta_time_per_sample: 1.0 / sample_rate, // calculate the delta_time_per_sample
-            velocity,
-        }
-    }
-    pub fn set_velocity(&mut self, velocity: f32) {
-        self.velocity = velocity;
-
-        // Adjust envelope parameters based on velocity
-        // Example: Modify attack and release times based on velocity
-        self.attack *= velocity;
-        self.release *= velocity;
-        self.decay *= velocity;
-        self.sustain *= velocity;
-
-        // Additional adjustments based on velocity if needed
-    }
-    pub fn get_time(&mut self) -> f32{
-        self.time
-    }
-    pub fn set_attack(&mut self, attack: f32) {
-        self.attack = attack;
-    }
-
-    pub fn set_decay(&mut self, decay: f32) {
-        self.decay = decay;
-    }
-
-    pub fn set_sustain(&mut self, sustain: f32) {
-        self.sustain = sustain;
-    }
-
-    pub fn set_release(&mut self, release: f32) {
-        self.release = release;
-    }
-
-    pub fn get_state(&self) -> ADSREnvelopeState {
-        self.state
-    }
-
-    pub fn previous_value(&self) -> f32 {
-        match self.state {
-            ADSREnvelopeState::Idle => 0.0,
-            ADSREnvelopeState::Attack => self.time / self.attack,
-            ADSREnvelopeState::Decay => 1.0 - (1.0 - self.sustain) * (self.time / self.decay),
-            ADSREnvelopeState::Sustain => self.sustain,
-            ADSREnvelopeState::Release => self.sustain * (1.0 - (self.time / self.release)),
-        }
-    }
-    pub fn advance(&mut self) {
-        self.time += self.delta_time_per_sample;
-
-        // Adjust envelope parameters based on velocity sensitivity
-        let velocity_sensitive_attack = self.attack / self.velocity;
-        let velocity_sensitive_decay = self.decay / self.velocity;
-        let velocity_sensitive_release = self.release / self.velocity;
-
-        // Check if the envelope has completed and move to the next stage
-        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
-            self.state = ADSREnvelopeState::Idle;
-            self.time = 0.0;
-        } else {
-            match self.state {
-                ADSREnvelopeState::Attack => {
-                    if self.time >= velocity_sensitive_attack {
-                        self.state = ADSREnvelopeState::Decay;
-                        self.time = 0.0;
-                    }
-                }
-                ADSREnvelopeState::Decay => {
-                    if self.time >= velocity_sensitive_decay {
-                        self.state = ADSREnvelopeState::Sustain;
-                        self.time = 0.0;
-                    }
-                }
-                ADSREnvelopeState::Sustain => {
-                    // No change in state during sustain
-                }
-                ADSREnvelopeState::Release => {
-                    if self.time >= velocity_sensitive_release {
-                        self.state = ADSREnvelopeState::Idle;
-                        self.time = 0.0;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    
-}
-
-impl Envelope for ADSREnvelope {
-    fn get_value(&mut self) -> f32 {
-        self.time += self.delta_time_per_sample;
-
-        // Adjust envelope parameters based on velocity sensitivity
-        let velocity_sensitive_attack = self.attack / self.velocity;
-        let velocity_sensitive_decay = self.decay / self.velocity;
-        let velocity_sensitive_release = self.release / self.velocity;
-
-        // Check if the envelope has completed and move to the next stage
-        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
-            self.state = ADSREnvelopeState::Idle;
-            self.time = 0.0;
-        }
-
-        let value = match self.state {
-            ADSREnvelopeState::Idle => 0.0,
-            ADSREnvelopeState::Attack => {
-                let attack_value = self.time / velocity_sensitive_attack;
-                if self.time >= velocity_sensitive_attack {
-                    self.state = ADSREnvelopeState::Decay;
-                    self.time = 0.0;
-                    1.0
-                } else {
-                    attack_value
-                }
-            }
-            ADSREnvelopeState::Decay => {
-                let decay_value =
-                    1.0 - (1.0 - self.sustain) * (self.time / velocity_sensitive_decay);
-                if self.time >= velocity_sensitive_decay {
-                    self.state = ADSREnvelopeState::Sustain;
-                    self.time = 0.0;
-                    self.sustain
-                } else {
-                    decay_value
-                }
-            }
-            ADSREnvelopeState::Sustain => self.sustain,
-            ADSREnvelopeState::Release => {
-                let release_value =
-                    self.sustain * (1.0 - (self.time / velocity_sensitive_release));
-                if self.time >= velocity_sensitive_release {
-                    self.state = ADSREnvelopeState::Idle;
-                    self.time = 0.0;
-                    0.0
-                } else {
-                    release_value
-                }
-            }
-        };
-
-        // Check if the envelope has completed and move to the next stage
-        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
-            self.state = ADSREnvelopeState::Idle;
-            self.time = 0.0;
-        }
-
-        value
-    }
-
-    fn trigger(&mut self) {
-        self.state = ADSREnvelopeState::Attack;
-        self.time = 0.0;
-    }
-
-    fn release(&mut self) {
-        self.state = ADSREnvelopeState::Release;
-    }
-}
-
-
-
+use crate::envelope::*;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Enum, Sequence)]
 pub enum FilterType {
@@ -214,13 +14,10 @@ pub enum FilterType {
     Statevariable,
 }
 
-
 pub trait Filter: Send {
     fn process(&mut self, input: f32) -> f32;
     fn set_sample_rate(&mut self, sample_rate: f32);
 }
-
-
 
 pub struct HighpassFilter {
     cutoff: f32,
@@ -233,7 +30,13 @@ pub struct HighpassFilter {
 }
 
 impl HighpassFilter {
-    pub fn new(cutoff: f32, cutoff_envelope: ADSREnvelope, resonance: f32, resonance_envelope: ADSREnvelope, sample_rate: f32) -> Self {
+    pub fn new(
+        cutoff: f32,
+        cutoff_envelope: ADSREnvelope,
+        resonance: f32,
+        resonance_envelope: ADSREnvelope,
+        sample_rate: f32,
+    ) -> Self {
         HighpassFilter {
             cutoff,
             resonance,
@@ -252,10 +55,9 @@ impl Filter for HighpassFilter {
         let resonance = self.resonance * self.resonance_envelope.get_value();
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
-        let output = c * (input - self.prev_input + r * self.prev_output);
+        self.prev_output = c * (input - self.prev_input + r * self.prev_output);
         self.prev_input = input;
-        self.prev_output = output;
-        output
+        self.prev_output
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
@@ -274,7 +76,13 @@ pub struct BandpassFilter {
 }
 
 impl BandpassFilter {
-    pub fn new(cutoff: f32, cutoff_envelope: ADSREnvelope, resonance: f32, resonance_envelope: ADSREnvelope, sample_rate: f32) -> Self {
+    pub fn new(
+        cutoff: f32,
+        cutoff_envelope: ADSREnvelope,
+        resonance: f32,
+        resonance_envelope: ADSREnvelope,
+        sample_rate: f32,
+    ) -> Self {
         BandpassFilter {
             cutoff,
             resonance,
@@ -292,19 +100,15 @@ impl Filter for BandpassFilter {
         let resonance = self.resonance * self.resonance_envelope.get_value();
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
-        let output = c * (input - self.prev_output) + r * self.prev_output;
+        self.prev_output = c * (input - self.prev_output) + r * self.prev_output;
         self.prev_input = input;
-        self.prev_output = output;
-        output
+        self.prev_output
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
     }
 }
-
-
-
 
 pub struct LowpassFilter {
     cutoff: f32,
@@ -316,7 +120,13 @@ pub struct LowpassFilter {
 }
 
 impl LowpassFilter {
-    pub fn new(cutoff: f32, cutoff_envelope: ADSREnvelope, resonance: f32, resonance_envelope: ADSREnvelope, sample_rate: f32) -> Self {
+    pub fn new(
+        cutoff: f32,
+        cutoff_envelope: ADSREnvelope,
+        resonance: f32,
+        resonance_envelope: ADSREnvelope,
+        sample_rate: f32,
+    ) -> Self {
         LowpassFilter {
             cutoff,
             resonance,
@@ -332,22 +142,16 @@ impl Filter for LowpassFilter {
     fn process(&mut self, input: f32) -> f32 {
         let cutoff = self.cutoff * self.cutoff_envelope.get_value();
         let resonance = self.resonance * self.resonance_envelope.get_value();
-
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = resonance;
-        let output = c * input + r * self.prev_output;
-
-        self.prev_output = output;
-        output
+        self.prev_output = c * input + r * self.prev_output;
+        self.prev_output
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
     }
 }
-
-
-
 
 pub struct NotchFilter {
     cutoff: f32,
@@ -365,7 +169,13 @@ pub struct NotchFilter {
 }
 
 impl NotchFilter {
-    pub fn new(cutoff: f32, cutoff_envelope: ADSREnvelope, bandwidth: f32, bandwidth_envelope: ADSREnvelope, sample_rate: f32) -> Self {
+    pub fn new(
+        cutoff: f32,
+        cutoff_envelope: ADSREnvelope,
+        bandwidth: f32,
+        bandwidth_envelope: ADSREnvelope,
+        sample_rate: f32,
+    ) -> Self {
         let mut filter = NotchFilter {
             cutoff,
             bandwidth,
@@ -388,7 +198,7 @@ impl NotchFilter {
         let wc = 2.0 * PI * self.cutoff / self.sample_rate; // cutoff frequency in radians
         let bw = 2.0 * PI * self.bandwidth / self.sample_rate; // bandwidth in radians
         let alpha = wc.sin() * (bw / 2.0).sinh().ln() / (2.0 * (3.0 as f32).sqrt().ln()); // bandwidth parameter
-        
+
         self.a0 = 1.0;
         self.a1 = -2.0 * wc.cos();
         self.a2 = 1.0;
@@ -398,11 +208,6 @@ impl NotchFilter {
         self.a2 *= norm;
         self.b1 = -2.0 * wc.cos() * norm;
         self.b2 = (1.0 - alpha) * norm;
-    }
-
-    pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        self.sample_rate = sample_rate;
-        self.calculate_coefficients();
     }
 }
 
@@ -418,16 +223,18 @@ impl Filter for NotchFilter {
         }
 
         // apply filter
-        let output = self.a0 * input + self.a1 * self.buf0 + self.a2 * self.buf1 - self.b1 * self.buf0 - self.b2 * self.buf1;
+        let output = self.a0 * input + self.a1 * self.buf0 + self.a2 * self.buf1
+            - self.b1 * self.buf0
+            - self.b2 * self.buf1;
         self.buf1 = self.buf0;
         self.buf0 = output;
         output
     }
     fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
+        self.calculate_coefficients();
     }
 }
-
 
 pub struct StatevariableFilter {
     cutoff: f32,
@@ -537,15 +344,14 @@ impl DCBlocker {
         DCBlocker {
             x1: 0.0,
             y1: 0.0,
-            r: 0.995,  // The closer this value to 1.0, the lower the cutoff frequency
+            r: 0.995, // The closer this value to 1.0, the lower the cutoff frequency
         }
     }
 
     pub fn process(&mut self, input: f32) -> f32 {
-        let output = input - self.x1 + self.r * self.y1;
+        self.y1 = input - self.x1 + self.r * self.y1;
         self.x1 = input;
-        self.y1 = output;
-        output
+        self.y1
     }
 }
 
@@ -558,13 +364,48 @@ pub fn generate_filter(
     _generated_sample: f32,
     sample_rate: f32,
 ) -> Box<dyn Filter> {
-
     match filter_type {
-        FilterType::None => Box::new(NoneFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        FilterType::Lowpass => Box::new(LowpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        FilterType::Bandpass => Box::new(BandpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        FilterType::Highpass => Box::new(HighpassFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        FilterType::Notch => Box::new(NotchFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
-        FilterType::Statevariable => Box::new(StatevariableFilter::new(cutoff, cutoff_envelope, resonance, resonance_envelope, sample_rate)),
+        FilterType::None => Box::new(NoneFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
+        FilterType::Lowpass => Box::new(LowpassFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
+        FilterType::Bandpass => Box::new(BandpassFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
+        FilterType::Highpass => Box::new(HighpassFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
+        FilterType::Notch => Box::new(NotchFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
+        FilterType::Statevariable => Box::new(StatevariableFilter::new(
+            cutoff,
+            cutoff_envelope,
+            resonance,
+            resonance_envelope,
+            sample_rate,
+        )),
     }
 }
