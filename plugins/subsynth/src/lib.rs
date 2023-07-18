@@ -489,13 +489,13 @@ impl Plugin for SubSynth {
                                 let vibrato: f32 = 0.0;
                                 let tuning: f32 = 0.0;
                                 let initial_phase: f32 = self.prng.gen();
-                                let vibrato_lfo = Modulator::new(
+                                let mut vibrato_lfo = Modulator::new(
                                     self.params.vibrato_rate.value(), 
                                     self.params.vibrato_intensity.value(), 
                                     self.params.vibrato_attack.value(), 
                                     self.params.vibrato_shape.value(),
                                 );
-                                let tremolo_lfo = Modulator::new(
+                                let mut tremolo_lfo = Modulator::new(
                                     self.params.tremolo_rate.value(), 
                                     self.params.tremolo_intensity.value(), 
                                     self.params.tremolo_attack.value(), 
@@ -507,7 +507,7 @@ impl Plugin for SubSynth {
                                 let voice = self.start_voice(
                                     context, timing, voice_id, channel, note,
                                     velocity, // Add velocity parameter
-                                    pan, brightness, expression, // Add expression parameter
+                                    pan, pressure, brightness, expression, // Add expression parameter
                                     vibrato,    // Add vibrato parameter
                                     tuning,
                                     vibrato_lfo,
@@ -661,6 +661,7 @@ impl Plugin for SubSynth {
                                                 voice_inner.expression,
                                                 voice_inner.tuning,
                                                 pressure,
+                                                voice_inner.vibrato,
                                                 Some(&voice_inner.amp_envelope),
                                                 Some(&voice_inner.filter_cut_envelope),
                                                 Some(&voice_inner.filter_res_envelope),
@@ -692,6 +693,7 @@ impl Plugin for SubSynth {
                                                 voice_inner.expression,
                                                 voice_inner.tuning,
                                                 voice_inner.pressure,
+                                                voice_inner.vibrato,
                                                 Some(&voice_inner.amp_envelope),
                                                 Some(&voice_inner.filter_cut_envelope),
                                                 Some(&voice_inner.filter_res_envelope),
@@ -723,6 +725,7 @@ impl Plugin for SubSynth {
                                                 voice_inner.expression,
                                                 voice_inner.tuning,
                                                 voice_inner.pressure,
+                                                voice_inner.vibrato,
                                                 Some(&voice_inner.amp_envelope),
                                                 Some(&voice_inner.filter_cut_envelope),
                                                 Some(&voice_inner.filter_res_envelope),
@@ -754,6 +757,7 @@ impl Plugin for SubSynth {
                                                 voice_inner.expression,
                                                 tuning,
                                                 voice_inner.pressure,
+                                                voice_inner.vibrato,
                                                 Some(&voice_inner.amp_envelope),
                                                 Some(&voice_inner.filter_cut_envelope),
                                                 Some(&voice_inner.filter_res_envelope),
@@ -785,6 +789,7 @@ impl Plugin for SubSynth {
                                                 voice_inner.expression,
                                                 voice_inner.tuning,
                                                 voice_inner.pressure,
+                                                vibrato,
                                                 Some(&voice_inner.amp_envelope),
                                                 Some(&voice_inner.filter_cut_envelope),
                                                 Some(&voice_inner.filter_res_envelope),
@@ -1003,7 +1008,7 @@ impl SubSynth {
         amp_envelope: ADSREnvelope,
         filter_cut_envelope: ADSREnvelope,
         filter_res_envelope: ADSREnvelope,
-        filter: Option<FilterType>,
+        filter: FilterType,
     ) -> &mut Voice {
         let (amp_envelope, filter_cut_envelope, filter_res_envelope) =
             self.construct_envelopes(192000.0, velocity);
@@ -1027,7 +1032,7 @@ impl SubSynth {
             voice_gain: None,
             filter_cut_envelope,
             filter_res_envelope,
-            filter,
+            filter: Some(filter),
             vib_mod,
             trem_mod,
         };
@@ -1225,6 +1230,7 @@ impl SubSynth {
         expression: f32,
         tuning: f32,
         pressure: f32,
+        vibrato: f32,
         amp_envelope: Option<&ADSREnvelope>,
         filter_cut_envelope: Option<&ADSREnvelope>,
         filter_res_envelope: Option<&ADSREnvelope>,
@@ -1247,21 +1253,6 @@ impl SubSynth {
             vibrato_modulator.cloned().unwrap(),
             tremolo_modulator.cloned().unwrap(),
         );
-        &mut self,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-        pan: f32,
-        pressure:f32,
-        brightness: f32,
-        expression: f32,
-        tuning: f32,
-        vibrato: f32,
-        amp_envelope: ADSREnvelope,
-        filter_cut_envelope: ADSREnvelope,
-        filter_res_envelope: ADSREnvelope,
-        vib_mod: Modulator,
-        trem_mod: Modulator,
         voice.velocity = gain;
         voice.velocity_sqrt = gain.sqrt();
         if let Some(amp_envelope) = amp_envelope {

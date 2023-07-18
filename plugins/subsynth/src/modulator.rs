@@ -9,7 +9,7 @@ pub enum OscillatorShape {
     Sawtooth,
     Square,
 }
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Modulator {
     modulation_rate: f32,
     peak_intensity: f32,
