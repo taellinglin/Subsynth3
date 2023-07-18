@@ -370,6 +370,8 @@ pub fn generate_filter(
     input: f32,
     sample_rate: f32,
 ) -> f32 {
+    filter_cut_envelope.advance();
+    filter_res_envelope.advance();
     let filter_cut = filter_cut_envelope.get_value() * cutoff;
     let filter_res = filter_res_envelope.get_value() * resonance;
     

@@ -15,7 +15,7 @@ struct Data {
 impl Model for Data {}
 
 pub(crate) fn default_state() -> Arc<ViziaState> {
-    ViziaState::new(|| (860, 420))
+    ViziaState::new(|| (840, 520))
 }
 
 
@@ -44,9 +44,6 @@ pub(crate) fn create(
             .child_top(Stretch(1.0))
             .child_bottom(Pixels(0.0));
         HStack::new(cx, |cx| {
-            
-                
-
             VStack::new(cx, |cx| {
                 Label::new(cx, "Gain")
                     .height(Pixels(20.0))
@@ -115,7 +112,7 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                     
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.amp_release_ms);
-                Label::new(cx, "Envelope Level")
+                Label::new(cx, "Env Int")
                     .height(Pixels(20.0))
                     .width(Pixels(100.0))
                     .child_top(Stretch(1.0))
@@ -196,11 +193,84 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res_envelope_level);
             })
-            
             .row_between(Pixels(0.0))
             .child_left(Stretch(1.0))
             .child_right(Stretch(1.0));
+
         });
-    }
-)}
+        HStack::new(cx, |cx| {
+            VStack::new(cx, |cx| {
+            
+                Label::new(cx, "Vib Int")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.vibrato_intensity);
+
+                Label::new(cx, "Vib Rate")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.vibrato_rate);
+            });
+            VStack::new(cx, |cx| {
+                
+                Label::new(cx, "Vib Attack")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.vibrato_attack);
+                
+                Label::new(cx, "Vib Shape")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.vibrato_shape);
+            });
+            VStack::new(cx, |cx| {
+            
+                Label::new(cx, "Trem Int")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.tremolo_intensity);
+
+                Label::new(cx, "Tremo Rate")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.tremolo_rate);
+            });
+            VStack::new(cx, |cx| {
+                
+                Label::new(cx, "Tremo Atk")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.tremolo_attack);
+
+                
+                Label::new(cx, "Tremo Shape")
+                    .height(Pixels(20.0))
+                    .width(Pixels(100.0))
+                    .child_top(Stretch(1.0))
+                    .child_bottom(Pixels(0.0));
+                ParamSlider::new(cx, Data::params.clone(), |params| &params.tremolo_shape);
+
+            })
+            .row_between(Pixels(0.0))
+            .child_left(Stretch(1.0))
+            .child_right(Stretch(1.0));
+            
+        });
+
+    })
+}
                 

@@ -2,6 +2,7 @@ mod editor;
 mod envelope;
 mod filter;
 mod waveform;
+mod modulator;
 
 use nih_plug::params::enums::EnumParam;
 use nih_plug::prelude::*;
@@ -10,6 +11,7 @@ use rand::Rng;
 use rand_pcg::Pcg32;
 use std::sync::Arc;
 
+use modulator::{Modulator, OscillatorShape};
 use envelope::{ADSREnvelope, Envelope, ADSREnvelopeState};
 use filter::{generate_filter, FilterType, Filter};
 use waveform::{generate_waveform, Waveform};
@@ -73,6 +75,22 @@ struct SubSynthParams {
     filter_cut_envelope_level: FloatParam,
     #[id = "filter_res_env_level"]
     filter_res_envelope_level: FloatParam,
+    #[id = "vibrato_atk"]
+    vibrato_attack: FloatParam,
+    #[id = "vibrato_int"]
+    vibrato_intensity: FloatParam,
+    #[id = "vibrato_rate"]
+    vibrato_rate: FloatParam,
+    #[id = "tremolo_atk"]
+    tremolo_attack: FloatParam,
+    #[id = "tremolo_int"]
+    tremolo_intensity: FloatParam,
+    #[id = "tremolo_rate"]
+    tremolo_rate: FloatParam,
+    #[id = "vibrato_shape"]
+    vibrato_shape: EnumParam<OscillatorShape>,
+    #[id = "tremolo_shape"]
+    tremolo_shape: EnumParam<OscillatorShape>,
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +114,8 @@ struct Voice {
     vibrato: f32,    // Add vibrato field
     expression: f32, // Add expression field
     brightness: f32, // Add brightness field
+    vib_mod: Modulator,
+    trem_mod: Modulator,
 }
 
 impl Default for SubSynth {
@@ -289,7 +309,6 @@ impl Default for SubSynthParams {
                 },
             )
             .with_step_size(0.01),
-            
             filter_cut_envelope_level: FloatParam::new(
                 "Filter Cutoff Envelope Level",
                 1.0,
@@ -299,7 +318,6 @@ impl Default for SubSynthParams {
                 },
             )
             .with_step_size(0.01),
-            
             filter_res_envelope_level: FloatParam::new(
                 "Filter Resonance Envelope Level",
                 1.0,
@@ -309,9 +327,74 @@ impl Default for SubSynthParams {
                 },
             )
             .with_step_size(0.01),
+            vibrato_attack: FloatParam::new(
+                "Vibrato Attack",
+                1.0,
+                FloatRange::Skewed {
+                    min: 0.0,
+                    max: 10.0,
+                    factor: FloatRange::skew_factor(-1.0),
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(" ms"),
+            vibrato_intensity: FloatParam::new(
+                "Vibrato Intensity",
+                0.0,
+                FloatRange::Linear {
+                    min: -1.0,
+                    max: 1.0,
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(""),
+            vibrato_rate: FloatParam::new(
+                "Vibrato Rate",
+                1.0,
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 10.0,
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(" Hz"),
+            tremolo_attack: FloatParam::new(
+                "Tremolo Attack",
+                1.0,
+                FloatRange::Skewed {
+                    min: 0.0,
+                    max: 10.0,
+                    factor: FloatRange::skew_factor(-1.0),
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(" ms"),
+            tremolo_intensity: FloatParam::new(
+                "Tremolo Intensity",
+                0.0,
+                FloatRange::Linear {
+                    min: -1.0,
+                    max: 1.0,
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(""),
+            tremolo_rate: FloatParam::new(
+                "Tremolo Rate",
+                1.0,
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 10.0,
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit(" Hz"),
+            vibrato_shape: EnumParam::new("Vibrato Shape", OscillatorShape::Sine),
+            tremolo_shape: EnumParam::new("Tremolo Shape", OscillatorShape::Sine),
         }
     }
 }
+
 
 impl Plugin for SubSynth {
     const NAME: &'static str = "SubSynthBeta";
@@ -405,20 +488,39 @@ impl Plugin for SubSynth {
                                 let vibrato: f32 = 0.0;
                                 let tuning: f32 = 0.0;
                                 let initial_phase: f32 = self.prng.gen();
+                                let vibrato_lfo = Modulator::new(
+                                    self.params.vibrato_rate.value(), 
+                                    self.params.vibrato_intensity.value() * voice.vibrato, 
+                                    self.params.vibrato_attack.value(), 
+                                    self.params.vibrato_shape.value(),
+                                );
+                                let tremolo_lfo = Modulator::new(
+                                    self.params.tremolo_rate.value(), 
+                                    self.params.tremolo_intensity.value() * voice.expression, 
+                                    self.params.tremolo_attack.value(), 
+                                    self.params.tremolo_shape.value(),
+                                );
                                 // This starts with the attack portion of the amplitude envelope
                                 let (amp_envelope, cutoff_envelope, resonance_envelope) =
-                                    self.construct_envelopes(sample_rate, velocity);
+                                    self.construct_envelopes(sample_rate, voice.velocity);
                                 let voice = self.start_voice(
                                     context, timing, voice_id, channel, note,
                                     velocity, // Add velocity parameter
                                     pan, brightness, expression, // Add expression parameter
                                     vibrato,    // Add vibrato parameter
                                     tuning,
+                                    vibrato_lfo,
+                                    tremolo_lfo,
+                                    amp_envelope,
+                                    cutoff_envelope,
+                                    resonance_envelope,
                                 );
-
+                                
+                                voice.vib_mod = vibrato_lfo;
+                                voice.trem_mod = tremolo_lfo;
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
-                                let pitch = util::midi_note_to_freq(note)
+                                let pitch = voice.tuning + voice.vib_mod.get_modulation() + util::midi_note_to_freq(note)
                                     * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
@@ -544,7 +646,11 @@ impl Plugin for SubSynth {
                                 pressure,
                             } => {
                                 self.handle_poly_pressure_event(
-                                    timing, voice_id, channel, note, pressure,
+                                    timing, 
+                                    voice_id, 
+                                    channel, 
+                                    note, 
+                                    pressure,
                                 );
                             }
                             NoteEvent::PolyVolume {
@@ -640,10 +746,12 @@ impl Plugin for SubSynth {
                         // 0 and 1. When a note off event is received, this envelope will start fading out
                         // again. When it reaches 0, we will terminate the voice.
                         
-            
+                        
                         let mut dc_blocker = filter::DCBlocker::new();
                         // Apply filter
                         let filter_type = self.params.filter_type.value();
+                        let vib_shape =  self.params.vibrato_shape.value();
+                        let trem_shape =  self.params.tremolo_shape.value();
                         voice.filter = Some(filter_type);
                         let cutoff = self.params.filter_cut.value();
                         let resonance = self.params.filter_res.value();
@@ -661,7 +769,7 @@ impl Plugin for SubSynth {
                         voice.amp_envelope.set_scale(self.params.amp_envelope_level.value());
         
                         // Apply filters to the generated sample
-                        let mut filtered_sample= generate_filter(
+                        let filtered_sample= generate_filter(
                                 voice.filter.unwrap(),
                                 cutoff,
                                 resonance,
@@ -677,9 +785,11 @@ impl Plugin for SubSynth {
                         voice.filter_cut_envelope.advance();
                         voice.filter_res_envelope.advance();
                         voice.amp_envelope.advance();
+                        voice.vib_mod.trigger();
+                        voice.trem_mod.trigger();
 
                         // Calculate amplitude for voice
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() + voice.trem_mod.get_modulation();
             
                         // Apply voice-specific processing
                         let naive_waveform = filtered_sample;
@@ -785,6 +895,11 @@ impl SubSynth {
         expression: f32,
         vibrato: f32,
         tuning: f32,
+        vib_mod: Modulator,
+        trem_mod: Modulator,
+        amp_envelope: ADSREnvelope,
+        filter_cut_envelope: ADSREnvelope,
+        filter_res_envelope: ADSREnvelope,
     ) -> &mut Voice {
         let new_voice = Voice {
             voice_id: voice_id.unwrap_or_else(|| compute_fallback_voice_id(note, channel)),
@@ -801,35 +916,13 @@ impl SubSynth {
             phase: 0.0,
             phase_delta: 0.0,
             releasing: false,
-            amp_envelope: ADSREnvelope::new(
-                self.params.amp_attack_ms.value(),
-                self.params.amp_envelope_level.value(),
-                self.params.amp_decay_ms.value(),
-                self.params.amp_sustain_level.value(),
-                self.params.amp_release_ms.value(),
-                192000.0,
-                velocity,
-            ),
+            amp_envelope,
             voice_gain: None,
-            filter_cut_envelope: ADSREnvelope::new(
-                self.params.filter_cut_attack_ms.value(),
-                self.params.filter_res_envelope_level.value(),
-                self.params.filter_cut_decay_ms.value(),
-                self.params.filter_cut_sustain_ms.value(),
-                self.params.filter_cut_release_ms.value(),
-                192000.0,
-                velocity,
-            ),
-            filter_res_envelope: ADSREnvelope::new(
-                self.params.filter_res_attack_ms.value(),
-                self.params.filter_res_envelope_level.value(),
-                self.params.filter_res_decay_ms.value(),
-                self.params.filter_res_sustain_ms.value(),
-                self.params.filter_res_release_ms.value(),
-                192000.0,
-                velocity,
-            ),
-            filter: Some(self.params.filter_type.value()),
+            filter_cut_envelope,
+            filter_res_envelope,
+            filter,
+            vib_mod,
+            trem_mod,
         };
     
         self.next_internal_voice_id = self.next_internal_voice_id.wrapping_add(1);
@@ -842,6 +935,8 @@ impl SubSynth {
                 voice.amp_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 voice.filter_cut_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 voice.filter_res_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
+                voice.vib_mod.trigger();
+                voice.trem_mod.trigger();
             }
             voice.as_mut().unwrap()
         } else {
@@ -861,6 +956,8 @@ impl SubSynth {
                 oldest_voice.filter_cut_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 oldest_voice.filter_res_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 oldest_voice.releasing = false; // Reset the releasing flag
+                oldest_voice.vib_mod.trigger();
+                oldest_voice.trem_mod.trigger();
             } else {
                 context.send_event(NoteEvent::VoiceTerminated {
                     timing: sample_offset,
@@ -957,6 +1054,11 @@ impl SubSynth {
         expression: f32,
         tuning: f32,
         vibrato: f32,
+        amp_envelope: ADSREnvelope,
+        filter_cut_envelope: ADSREnvelope,
+        filter_res_envelope: ADSREnvelope,
+        vib_mod: Modulator,
+        trem_mod: Modulator,
     ) -> &mut Voice {
         // Search for an existing voice with the given voice_id
         if let Some(existing_index) = self.voices.iter().position(|voice| {
@@ -987,40 +1089,18 @@ impl SubSynth {
             phase: 0.0,
             phase_delta: 0.0,
             releasing: false,
-            amp_envelope: ADSREnvelope::new(
-                self.params.amp_attack_ms.value(),
-                self.params.amp_envelope_level.value(),
-                self.params.amp_decay_ms.value(),
-                self.params.amp_sustain_level.value(),
-                self.params.amp_release_ms.value(),
-                192000.0,
-                1.0,
-            ),
+            amp_envelope,
             voice_gain: None,
-            filter_cut_envelope: ADSREnvelope::new(
-                self.params.filter_cut_attack_ms.value(),
-                self.params.filter_cut_envelope_level.value(),
-                self.params.filter_cut_decay_ms.value(),
-                self.params.filter_cut_sustain_ms.value(),
-                self.params.filter_cut_release_ms.value(),
-                192000.0,
-                1.0,
-            ),
-            filter_res_envelope: ADSREnvelope::new(
-                self.params.filter_res_attack_ms.value(),
-                self.params.filter_res_envelope_level.value(),
-                self.params.filter_res_decay_ms.value(),
-                self.params.filter_res_sustain_ms.value(),
-                self.params.filter_res_release_ms.value(),
-                192000.0,
-                1.0,
-            ),
+            filter_cut_envelope,
+            filter_res_envelope,
             filter: Some(self.params.filter_type.value()),
             pan,
             brightness,
             expression,
             tuning,
             vibrato,
+            vib_mod,
+            trem_mod,
         };
 
         // Find the next available slot for a new voice
@@ -1042,81 +1122,64 @@ impl SubSynth {
         self.voices[next_voice_index].as_mut().unwrap()
     }
 
-    fn handle_poly_volume_event(
+    fn handle_poly_event(
         &mut self,
-        _timing: u32,
+        timing: u32,
         voice_id: Option<i32>,
         channel: u8,
         note: u8,
         gain: f32,
-    ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, 0.0);
-        voice.velocity = gain;
-        voice.velocity_sqrt = gain.sqrt();
-        voice.amp_envelope.set_velocity(gain); // Set velocity for the amp envelope
-    }
-
-    fn handle_poly_pan_event(
-        &mut self,
-        _timing: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
         pan: f32,
-    ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note, pan, 0.0, 0.0, 0.0, 0.0);
-        voice.pan = pan;
-    }
-
-    fn handle_poly_tuning_event(
-        &mut self,
-        _timing: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-        tuning: f32,
-    ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, tuning, 0.0);
-        voice.tuning = tuning;
-    }
-
-    fn handle_poly_vibrato_event(
-        &mut self,
-        _timing: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-        vibrato: f32,
-    ) {
-        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, vibrato);
-        voice.vibrato = vibrato;
-    }
-
-    fn _handle_poly_expression_event(
-        &mut self,
-        _timing: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
-        expression: f32,
-    ) {
-        let voice =
-            self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, expression, 0.0, 0.0);
-        voice.expression = expression;
-    }
-
-    fn _handle_poly_brightness_event(
-        &mut self,
-        _timing: u32,
-        voice_id: Option<i32>,
-        channel: u8,
-        note: u8,
         brightness: f32,
+        expression: f32,
+        tuning: f32,
+        vibrato: f32,
+        amp_envelope: ADSREnvelope,
+        filter_cut_envelope: ADSREnvelope,
+        filter_res_envelope: ADSREnvelope,
+        vib_mod: Modulator,
+        trem_mod: Modulator,
     ) {
-        let voice =
-            self.find_or_create_voice(voice_id, channel, note, 0.0, brightness, 0.0, 0.0, 0.0);
-        voice.brightness = brightness;
+        let voice = self.find_or_create_voice(
+            voice_id,
+            channel,
+            note,
+            pan,
+            brightness,
+            expression,
+            tuning,
+            vibrato,
+            amp_envelope,
+            filter_cut_envelope,
+            filter_res_envelope,
+            vib_mod,
+            trem_mod,
+        );
+    
+        match event_type {
+            PolyEventType::Volume => {
+                voice.velocity = gain;
+                voice.velocity_sqrt = gain.sqrt();
+                voice.amp_envelope.set_velocity(gain);
+            }
+            PolyEventType::Pan => {
+                voice.pan = pan;
+            }
+            PolyEventType::Tuning => {
+                voice.tuning = tuning;
+            }
+            PolyEventType::Vibrato => {
+                voice.vibrato = vibrato;
+            }
+            PolyEventType::Expression => {
+                voice.expression = expression;
+            }
+            PolyEventType::Brightness => {
+                voice.brightness = brightness;
+            }
+        }
     }
+    
 
     fn choke_voices(
         &mut self,
