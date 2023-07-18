@@ -9,7 +9,7 @@ pub enum OscillatorShape {
     Sawtooth,
     Square,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Modulator {
     modulation_rate: f32,
     peak_intensity: f32,
@@ -46,7 +46,9 @@ impl Modulator {
         }
     }
 
-    pub fn get_modulation(&self) -> f32 {
+    pub fn get_modulation(&mut self, sample_rate: f32) -> f32 {
+        let dt = 1.0 / sample_rate;
+        self.update(dt);
         let attack_progress = self.current_time / self.attack_duration;
         let intensity = self.peak_intensity * attack_progress;
         let modulation = match self.oscillator_shape {

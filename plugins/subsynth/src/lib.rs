@@ -489,13 +489,13 @@ impl Plugin for SubSynth {
                                 let vibrato: f32 = 0.0;
                                 let tuning: f32 = 0.0;
                                 let initial_phase: f32 = self.prng.gen();
-                                let mut vibrato_lfo = Modulator::new(
+                                let vibrato_lfo = Modulator::new(
                                     self.params.vibrato_rate.value(), 
                                     self.params.vibrato_intensity.value(), 
                                     self.params.vibrato_attack.value(), 
                                     self.params.vibrato_shape.value(),
                                 );
-                                let mut tremolo_lfo = Modulator::new(
+                                let tremolo_lfo = Modulator::new(
                                     self.params.tremolo_rate.value(), 
                                     self.params.tremolo_intensity.value(), 
                                     self.params.tremolo_attack.value(), 
@@ -518,11 +518,13 @@ impl Plugin for SubSynth {
                                     self.params.filter_type.value(),
                                 );
                                 
-                                voice.vib_mod = vibrato_lfo;
-                                voice.trem_mod = tremolo_lfo;
+                                voice.vib_mod = vibrato_lfo.clone();
+                                voice.trem_mod = tremolo_lfo.clone();
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
-                                let pitch = voice.tuning + voice.vib_mod.get_modulation() + util::midi_note_to_freq(note)
+                                voice.vib_mod.trigger();
+                                voice.trem_mod.trigger();
+                                let pitch = voice.vib_mod.get_modulation(sample_rate) * 12.0 + util::midi_note_to_freq(note)
                                     * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
@@ -649,24 +651,36 @@ impl Plugin for SubSynth {
                             } => {
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
-                                        if let Some(voice_inner) = voice {
+                                        if let Some(voice_inner) = voice.as_mut() {
+                                            let velocity_sqrt = voice_inner.velocity_sqrt;
+                                            let pan = voice_inner.pan;
+                                            let brightness = voice_inner.brightness;
+                                            let expression = voice_inner.expression;
+                                            let tuning = voice_inner.tuning;
+                                            let vibrato = voice_inner.vibrato;
+                                            let amp_envelope = voice_inner.amp_envelope.clone();
+                                            let filter_cut_envelope = voice_inner.filter_cut_envelope.clone();
+                                            let filter_res_envelope = voice_inner.filter_res_envelope.clone();
+                                            let vib_mod = voice_inner.vib_mod.clone();
+                                            let trem_mod = voice_inner.trem_mod.clone();
+                            
                                             self.handle_poly_event(
                                                 timing,
                                                 voice_id,
                                                 channel,
                                                 note,
-                                                voice_inner.velocity,
-                                                voice_inner.pan,
-                                                voice_inner.brightness,
-                                                voice_inner.expression,
-                                                voice_inner.tuning,
+                                                0.0,
+                                                pan,
+                                                brightness,
+                                                expression,
+                                                tuning,
                                                 pressure,
-                                                voice_inner.vibrato,
-                                                Some(&voice_inner.amp_envelope),
-                                                Some(&voice_inner.filter_cut_envelope),
-                                                Some(&voice_inner.filter_res_envelope),
-                                                Some(&voice_inner.vib_mod),
-                                                Some(&voice_inner.trem_mod),
+                                                vibrato,
+                                                Some(&amp_envelope),
+                                                Some(&filter_cut_envelope),
+                                                Some(&filter_res_envelope),
+                                                Some(&vib_mod),
+                                                Some(&trem_mod),
                                             );
                                         }
                                     }
@@ -682,23 +696,34 @@ impl Plugin for SubSynth {
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
+                                            let pan = voice_inner.pan;
+                                            let brightness = voice_inner.brightness;
+                                            let expression = voice_inner.expression;
+                                            let tuning = voice_inner.tuning;
+                                            let vibrato = voice_inner.vibrato;
+                                            let amp_envelope = voice_inner.amp_envelope.clone();
+                                            let filter_cut_envelope = voice_inner.filter_cut_envelope.clone();
+                                            let filter_res_envelope = voice_inner.filter_res_envelope.clone();
+                                            let vib_mod = voice_inner.vib_mod.clone();
+                                            let trem_mod = voice_inner.trem_mod.clone();
+                            
                                             self.handle_poly_event(
                                                 timing,
                                                 voice_id,
                                                 channel,
                                                 note,
                                                 gain,
-                                                voice_inner.pan,
-                                                voice_inner.brightness,
-                                                voice_inner.expression,
-                                                voice_inner.tuning,
-                                                voice_inner.pressure,
-                                                voice_inner.vibrato,
-                                                Some(&voice_inner.amp_envelope),
-                                                Some(&voice_inner.filter_cut_envelope),
-                                                Some(&voice_inner.filter_res_envelope),
-                                                Some(&voice_inner.vib_mod),
-                                                Some(&voice_inner.trem_mod),
+                                                pan,
+                                                brightness,
+                                                expression,
+                                                tuning,
+                                                0.0,
+                                                vibrato,
+                                                Some(&amp_envelope),
+                                                Some(&filter_cut_envelope),
+                                                Some(&filter_res_envelope),
+                                                Some(&vib_mod),
+                                                Some(&trem_mod),
                                             );
                                         }
                                     }
@@ -714,23 +739,34 @@ impl Plugin for SubSynth {
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
+                                            let gain = voice_inner.velocity;
+                                            let brightness = voice_inner.brightness;
+                                            let expression = voice_inner.expression;
+                                            let tuning = voice_inner.tuning;
+                                            let vibrato = voice_inner.vibrato;
+                                            let amp_envelope = voice_inner.amp_envelope.clone();
+                                            let filter_cut_envelope = voice_inner.filter_cut_envelope.clone();
+                                            let filter_res_envelope = voice_inner.filter_res_envelope.clone();
+                                            let vib_mod = voice_inner.vib_mod.clone();
+                                            let trem_mod = voice_inner.trem_mod.clone();
+                            
                                             self.handle_poly_event(
                                                 timing,
                                                 voice_id,
                                                 channel,
                                                 note,
-                                                voice_inner.velocity,
+                                                gain,
                                                 pan,
-                                                voice_inner.brightness,
-                                                voice_inner.expression,
-                                                voice_inner.tuning,
-                                                voice_inner.pressure,
-                                                voice_inner.vibrato,
-                                                Some(&voice_inner.amp_envelope),
-                                                Some(&voice_inner.filter_cut_envelope),
-                                                Some(&voice_inner.filter_res_envelope),
-                                                Some(&voice_inner.vib_mod),
-                                                Some(&voice_inner.trem_mod),
+                                                brightness,
+                                                expression,
+                                                tuning,
+                                                0.0,
+                                                vibrato,
+                                                Some(&amp_envelope),
+                                                Some(&filter_cut_envelope),
+                                                Some(&filter_res_envelope),
+                                                Some(&vib_mod),
+                                                Some(&trem_mod),
                                             );
                                         }
                                     }
@@ -746,23 +782,34 @@ impl Plugin for SubSynth {
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
+                                            let gain = voice_inner.velocity;
+                                            let pan = voice_inner.pan;
+                                            let brightness = voice_inner.brightness;
+                                            let expression = voice_inner.expression;
+                                            let vibrato = voice_inner.vibrato;
+                                            let amp_envelope = voice_inner.amp_envelope.clone();
+                                            let filter_cut_envelope = voice_inner.filter_cut_envelope.clone();
+                                            let filter_res_envelope = voice_inner.filter_res_envelope.clone();
+                                            let vib_mod = voice_inner.vib_mod.clone();
+                                            let trem_mod = voice_inner.trem_mod.clone();
+                            
                                             self.handle_poly_event(
                                                 timing,
                                                 voice_id,
                                                 channel,
                                                 note,
-                                                voice_inner.velocity,
-                                                voice_inner.pan,
-                                                voice_inner.brightness,
-                                                voice_inner.expression,
+                                                gain,
+                                                pan,
+                                                brightness,
+                                                expression,
                                                 tuning,
-                                                voice_inner.pressure,
-                                                voice_inner.vibrato,
-                                                Some(&voice_inner.amp_envelope),
-                                                Some(&voice_inner.filter_cut_envelope),
-                                                Some(&voice_inner.filter_res_envelope),
-                                                Some(&voice_inner.vib_mod),
-                                                Some(&voice_inner.trem_mod),
+                                                0.0,
+                                                vibrato,
+                                                Some(&amp_envelope),
+                                                Some(&filter_cut_envelope),
+                                                Some(&filter_res_envelope),
+                                                Some(&vib_mod),
+                                                Some(&trem_mod),
                                             );
                                         }
                                     }
@@ -778,28 +825,41 @@ impl Plugin for SubSynth {
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
+                                            let gain = voice_inner.velocity;
+                                            let pan = voice_inner.pan;
+                                            let brightness = voice_inner.brightness;
+                                            let expression = voice_inner.expression;
+                                            let tuning = voice_inner.tuning;
+                                            let amp_envelope = voice_inner.amp_envelope.clone();
+                                            let filter_cut_envelope = voice_inner.filter_cut_envelope.clone();
+                                            let filter_res_envelope = voice_inner.filter_res_envelope.clone();
+                                            let vib_mod = voice_inner.vib_mod.clone();
+                                            let trem_mod = voice_inner.trem_mod.clone();
+                            
                                             self.handle_poly_event(
                                                 timing,
                                                 voice_id,
                                                 channel,
                                                 note,
-                                                voice_inner.velocity,
-                                                voice_inner.pan,
-                                                voice_inner.brightness,
-                                                voice_inner.expression,
-                                                voice_inner.tuning,
-                                                voice_inner.pressure,
+                                                gain,
+                                                pan,
+                                                brightness,
+                                                expression,
+                                                tuning,
+                                                0.0,
                                                 vibrato,
-                                                Some(&voice_inner.amp_envelope),
-                                                Some(&voice_inner.filter_cut_envelope),
-                                                Some(&voice_inner.filter_res_envelope),
-                                                Some(&voice_inner.vib_mod),
-                                                Some(&voice_inner.trem_mod),
+                                                Some(&amp_envelope),
+                                                Some(&filter_cut_envelope),
+                                                Some(&filter_res_envelope),
+                                                Some(&vib_mod),
+                                                Some(&trem_mod),
                                             );
                                         }
                                     }
                                 }
                             }
+                            
+                            
                             // Handle other MIDI events if needed
                             _ => (),
                         };
@@ -894,7 +954,7 @@ impl Plugin for SubSynth {
                         voice.trem_mod.trigger();
 
                         // Calculate amplitude for voice
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() + voice.trem_mod.get_modulation();
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() + 100.0 * voice.trem_mod.get_modulation(sample_rate);
             
                         // Apply voice-specific processing
                         let naive_waveform = filtered_sample;
@@ -904,8 +964,7 @@ impl Plugin for SubSynth {
                         // Calculate panning based on voice's pan value
                         // Apply panning and process the sample
                         let processed_sample = filter::DCBlocker::new().process(generated_sample);
-                        let processed_left_sample =
-                            (1.0 - voice.pan).sqrt() as f32 * processed_sample;
+                        let processed_left_sample = (1.0 - voice.pan).sqrt() as f32 * processed_sample;
                         let processed_right_sample = voice.pan.sqrt() as f32 * processed_sample;
 
                         // Add the processed sample to the output channels
