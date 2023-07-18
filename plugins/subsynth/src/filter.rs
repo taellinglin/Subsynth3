@@ -30,13 +30,7 @@ pub struct HighpassFilter {
 impl HighpassFilter {
     pub fn new(
         cutoff: f32,
-<<<<<<< HEAD
         resonance: f32,
-=======
-        cutoff_envelope: ADSREnvelope,
-        resonance: f32,
-        resonance_envelope: ADSREnvelope,
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         sample_rate: f32,
     ) -> Self {
         HighpassFilter {
@@ -62,13 +56,8 @@ impl Filter for HighpassFilter {
         let resonance = self.resonance;
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
-<<<<<<< HEAD
         self.prev_output = c * (input - self.prev_input + r * self.prev_output);
         self.prev_input = input;
-=======
-        self.prev_input = input;
-        self.prev_output = c * (input - self.prev_input + r * self.prev_output);
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         self.prev_output
     }
 
@@ -88,13 +77,7 @@ pub struct BandpassFilter {
 impl BandpassFilter {
     pub fn new(
         cutoff: f32,
-<<<<<<< HEAD
         resonance: f32,
-=======
-        cutoff_envelope: ADSREnvelope,
-        resonance: f32,
-        resonance_envelope: ADSREnvelope,
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         sample_rate: f32,
     ) -> Self {
         BandpassFilter {
@@ -119,13 +102,8 @@ impl Filter for BandpassFilter {
         let resonance = self.resonance;
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = 1.0 - resonance;
-<<<<<<< HEAD
         self.prev_output = c * (input - self.prev_output) + r * self.prev_output;
         self.prev_input = input;
-=======
-        self.prev_input = input;
-        self.prev_output = c * (input - self.prev_output) + r * self.prev_output;
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         self.prev_output
     }
 
@@ -144,13 +122,7 @@ pub struct LowpassFilter {
 impl LowpassFilter {
     pub fn new(
         cutoff: f32,
-<<<<<<< HEAD
         resonance: f32,
-=======
-        cutoff_envelope: ADSREnvelope,
-        resonance: f32,
-        resonance_envelope: ADSREnvelope,
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         sample_rate: f32,
     ) -> Self {
         LowpassFilter {
@@ -175,10 +147,6 @@ impl Filter for LowpassFilter {
         let resonance = self.resonance;
         let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
         let r = resonance;
-<<<<<<< HEAD
-=======
-
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         self.prev_output = c * input + r * self.prev_output;
         self.prev_output
     }
@@ -204,13 +172,7 @@ pub struct NotchFilter {
 impl NotchFilter {
     pub fn new(
         cutoff: f32,
-<<<<<<< HEAD
         bandwidth: f32,
-=======
-        cutoff_envelope: ADSREnvelope,
-        bandwidth: f32,
-        bandwidth_envelope: ADSREnvelope,
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         sample_rate: f32,
     ) -> Self {
         let mut filter = NotchFilter {
@@ -244,7 +206,6 @@ impl NotchFilter {
         self.b1 = -2.0 * wc.cos() * norm;
         self.b2 = (1.0 - alpha) * norm;
     }
-<<<<<<< HEAD
     pub fn set_cutoff(&mut self, cutoff: f32) {
         self.cutoff = cutoff;
     }
@@ -252,8 +213,6 @@ impl NotchFilter {
     pub fn set_resonance(&mut self, resonance: f32) {
         self.bandwidth = resonance;
     }
-=======
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 }
 
 impl Filter for NotchFilter {
@@ -396,13 +355,8 @@ impl DCBlocker {
     }
 
     pub fn process(&mut self, input: f32) -> f32 {
-<<<<<<< HEAD
         self.y1 = input - self.x1 + self.r * self.y1;
         self.x1 = input;
-=======
-        self.x1 = input;
-        self.y1 = input - self.x1 + self.r * self.y1;
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         self.y1
     }
 }
@@ -415,7 +369,6 @@ pub fn generate_filter(
     filter_res_envelope: &mut ADSREnvelope,
     input: f32,
     sample_rate: f32,
-<<<<<<< HEAD
 ) -> f32 {
     filter_cut_envelope.advance();
     filter_res_envelope.advance();
@@ -457,51 +410,3 @@ pub fn generate_filter(
     }
 }
 
-=======
-) -> Box<dyn Filter> {
-    match filter_type {
-        FilterType::None => Box::new(NoneFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-        FilterType::Lowpass => Box::new(LowpassFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-        FilterType::Bandpass => Box::new(BandpassFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-        FilterType::Highpass => Box::new(HighpassFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-        FilterType::Notch => Box::new(NotchFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-        FilterType::Statevariable => Box::new(StatevariableFilter::new(
-            cutoff,
-            cutoff_envelope,
-            resonance,
-            resonance_envelope,
-            sample_rate,
-        )),
-    }
-}
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d

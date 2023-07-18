@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 use nih_plug::prelude::{Editor};
-=======
-use nih_plug::prelude::Editor;
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 use nih_plug_vizia::vizia::prelude::*;
 use nih_plug_vizia::widgets::*;
 use nih_plug_vizia::{assets, create_vizia_editor, ViziaState, ViziaTheming};
@@ -99,7 +95,6 @@ pub(crate) fn create(
             });
 
             VStack::new(cx, |cx| {
-<<<<<<< HEAD
                 Label::new(cx, "Filter Cut Atk")
                     .height(Pixels(20.0))
                     .width(Pixels(100.0))
@@ -135,28 +130,6 @@ pub(crate) fn create(
                     .child_bottom(Pixels(0.0));
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_cut_envelope_level);
             });
-=======
-                create_label(cx, "Filter Cut Atk", 20.0, 100.0, 1.0, 0.0);
-                ParamSlider::new(cx, Data::params.clone(), |params| {
-                    &params.filter_cut_attack_ms
-                });
-                create_label(cx, "Filter Cut Dec", 20.0, 100.0, 1.0, 0.0);
-                ParamSlider::new(cx, Data::params.clone(), |params| {
-                    &params.filter_cut_decay_ms
-                });
-                create_label(cx, "Filter Cut Sus", 20.0, 100.0, 1.0, 0.0);
-                ParamSlider::new(cx, Data::params.clone(), |params| {
-                    &params.filter_cut_sustain_ms
-                });
-                create_label(cx, "Filter Cut Rel", 20.0, 100.0, 1.0, 0.0);
-                ParamSlider::new(cx, Data::params.clone(), |params| {
-                    &params.filter_cut_release_ms
-                });
-            })
-            .row_between(Pixels(0.0))
-            .child_left(Stretch(1.0))
-            .child_right(Stretch(1.0));
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
             VStack::new(cx, |cx| {
                 create_label(cx, "Filter Q Atk", 20.0, 100.0, 1.0, 0.0);
                 ParamSlider::new(cx, Data::params.clone(), |params| {
@@ -171,7 +144,6 @@ pub(crate) fn create(
                     &params.filter_res_sustain_ms
                 });
 
-<<<<<<< HEAD
                 Label::new(cx, "Filter Q Rel")
                     .height(Pixels(20.0))
                     .width(Pixels(100.0))
@@ -185,19 +157,12 @@ pub(crate) fn create(
                     .child_top(Stretch(1.0))
                     .child_bottom(Pixels(0.0));
                 ParamSlider::new(cx, Data::params.clone(), |params| &params.filter_res_envelope_level);
-=======
-                create_label(cx, "Filter Q Rel", 20.0, 100.0, 1.0, 0.0);
-                ParamSlider::new(cx, Data::params.clone(), |params| {
-                    &params.filter_res_release_ms
-                });
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
             })
             .row_between(Pixels(0.0))
             .child_left(Stretch(1.0))
             .child_right(Stretch(1.0));
 
         });
-<<<<<<< HEAD
         HStack::new(cx, |cx| {
             VStack::new(cx, |cx| {
             
@@ -274,7 +239,3 @@ pub(crate) fn create(
     })
 }
                 
-=======
-    })
-}
->>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
