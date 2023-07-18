@@ -8,7 +8,10 @@ pub trait Envelope {
     fn get_envelope_stage(&self) -> ADSREnvelopeState;
     fn set_scale(&mut self, envelope_levels: f32);
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ADSREnvelope {
     attack: f32,
@@ -18,11 +21,17 @@ pub struct ADSREnvelope {
     release: f32,
     state: ADSREnvelopeState,
     time: f32,
+<<<<<<< HEAD
     delta_time_per_sample: f32,
     sample_rate: f32,
     velocity: f32,
     is_sustained: bool,
     scale: f32,
+=======
+    delta_time_per_sample: f32, // add this new field
+    sample_rate: f32,
+    velocity: f32,
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Enum)]
@@ -38,7 +47,10 @@ pub enum ADSREnvelopeState {
 impl ADSREnvelope {
     pub fn new(
         attack: f32,
+<<<<<<< HEAD
         hold: f32,
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         decay: f32,
         sustain: f32,
         release: f32,
@@ -54,16 +66,26 @@ impl ADSREnvelope {
             state: ADSREnvelopeState::Attack,
             time: 0.0,
             sample_rate,
+<<<<<<< HEAD
             delta_time_per_sample: 1.0 / sample_rate,
             velocity,
             is_sustained: false,
             scale: 1.0,
+=======
+            delta_time_per_sample: 1.0 / sample_rate, // calculate the delta_time_per_sample
+            velocity,
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         }
     }
-
     pub fn set_velocity(&mut self, velocity: f32) {
         self.velocity = velocity;
 
+<<<<<<< HEAD
+    pub fn set_velocity(&mut self, velocity: f32) {
+        self.velocity = velocity;
+
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         // Adjust envelope parameters based on velocity
         // Example: Modify attack and release times based on velocity
         self.attack *= velocity;
@@ -73,11 +95,17 @@ impl ADSREnvelope {
 
         // Additional adjustments based on velocity if needed
     }
+<<<<<<< HEAD
 
     pub fn get_time(&mut self) -> f32 {
         self.time
     }
 
+=======
+    pub fn get_time(&mut self) -> f32 {
+        self.time
+    }
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
     pub fn set_attack(&mut self, attack: f32) {
         self.attack = attack;
     }
@@ -102,13 +130,19 @@ impl ADSREnvelope {
         match self.state {
             ADSREnvelopeState::Idle => 0.0,
             ADSREnvelopeState::Attack => self.time / self.attack,
+<<<<<<< HEAD
             ADSREnvelopeState::Hold => self.sustain,
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
             ADSREnvelopeState::Decay => 1.0 - (1.0 - self.sustain) * (self.time / self.decay),
             ADSREnvelopeState::Sustain => self.sustain,
             ADSREnvelopeState::Release => self.sustain * (1.0 - (self.time / self.release)),
         }
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
     pub fn advance(&mut self) {
         self.time += self.delta_time_per_sample;
 
@@ -122,6 +156,7 @@ impl ADSREnvelope {
                 self.time = 0.0;
             }
             ADSREnvelopeState::Attack if change >= self.attack => {
+<<<<<<< HEAD
                 self.state = ADSREnvelopeState::Hold;
                 self.time = 0.0;
             }
@@ -135,11 +170,23 @@ impl ADSREnvelope {
             }
             ADSREnvelopeState::Sustain if change >= self.attack + self.hold + self.decay + self.sustain => {
                 self.state = ADSREnvelopeState::Release;
+=======
+                self.state = ADSREnvelopeState::Decay;
+                self.time = 0.0;
+            }
+            ADSREnvelopeState::Decay if change >= self.decay => {
+                self.state = ADSREnvelopeState::Sustain;
+                self.time = 0.0;
+            }
+            ADSREnvelopeState::Release if change >= self.release => {
+                self.state = ADSREnvelopeState::Idle;
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 self.time = 0.0;
             }
             _ => {}
         }
     }
+<<<<<<< HEAD
 
     pub fn get_attack(&self) -> f32 {
         self.attack
@@ -176,19 +223,46 @@ impl ADSREnvelope {
     pub fn set_hold(&mut self, hold: f32) {
         self.hold = hold;
     }
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 }
 
 impl Envelope for ADSREnvelope {
     fn get_value(&mut self) -> f32 {
+<<<<<<< HEAD
         match self.state {
             ADSREnvelopeState::Idle => 0.0,
             ADSREnvelopeState::Attack => {
                 if self.time >= self.attack {
                     self.state = ADSREnvelopeState::Hold;
+=======
+        self.time += self.delta_time_per_sample;
+
+        // Adjust envelope parameters based on velocity sensitivity
+        let velocity_sensitive_attack = self.attack / self.velocity;
+        let velocity_sensitive_decay = self.decay / self.velocity;
+        let velocity_sensitive_release = self.release / self.velocity;
+
+        // Check if the envelope has completed and move to the next stage
+        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
+            self.state = ADSREnvelopeState::Idle;
+            self.time = 0.0;
+        }
+
+        let value = match self.state {
+            ADSREnvelopeState::Idle => 0.0,
+            ADSREnvelopeState::Attack => {
+                if self.time >= velocity_sensitive_attack {
+                    self.state = ADSREnvelopeState::Decay;
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                     self.time = 0.0;
                     self.previous_value()
                 } else {
+<<<<<<< HEAD
                     self.time / self.attack
+=======
+                    self.time / velocity_sensitive_attack
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 }
             }
             ADSREnvelopeState::Hold => {
@@ -199,12 +273,20 @@ impl Envelope for ADSREnvelope {
                 self.previous_value()
             }
             ADSREnvelopeState::Decay => {
+<<<<<<< HEAD
                 if self.time >= self.decay {
+=======
+                if self.time >= velocity_sensitive_decay {
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                     self.state = ADSREnvelopeState::Sustain;
                     self.time = 0.0;
                     self.previous_value()
                 } else {
+<<<<<<< HEAD
                     1.0 - (1.0 - self.sustain) * (self.time / self.decay)
+=======
+                    1.0 - (1.0 - self.sustain) * (self.time / velocity_sensitive_decay)
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 }
             }
             ADSREnvelopeState::Sustain => {
@@ -215,15 +297,31 @@ impl Envelope for ADSREnvelope {
                 self.sustain
             }
             ADSREnvelopeState::Release => {
+<<<<<<< HEAD
                 if self.time >= self.release {
+=======
+                if self.time >= velocity_sensitive_release {
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                     self.state = ADSREnvelopeState::Idle;
                     self.time = 0.0;
                     0.0
                 } else {
+<<<<<<< HEAD
                     self.sustain * (1.0 - (self.time / self.release))
+=======
+                    self.sustain * (1.0 - (self.time / velocity_sensitive_release))
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 }
             }
+        };
+
+        // Check if the envelope has completed and move to the next stage
+        if self.state != ADSREnvelopeState::Idle && self.time >= velocity_sensitive_release {
+            self.state = ADSREnvelopeState::Idle;
+            self.time = 0.0;
         }
+
+        value
     }
 
     fn trigger(&mut self) {

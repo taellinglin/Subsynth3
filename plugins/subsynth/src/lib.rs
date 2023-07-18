@@ -1,20 +1,40 @@
 mod editor;
+<<<<<<< HEAD
 mod envelope;
 mod filter;
 mod waveform;
 mod modulator;
 
 use nih_plug::params::enums::EnumParam;
+=======
+pub mod envelope;
+mod filter;
+mod waveform;
+
+use filter::FilterType;
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 use nih_plug::prelude::*;
 use nih_plug_vizia::ViziaState;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use std::sync::Arc;
+<<<<<<< HEAD
 
 use modulator::{Modulator, OscillatorShape};
 use envelope::{ADSREnvelope, Envelope, ADSREnvelopeState};
 use filter::{generate_filter, FilterType, Filter};
 use waveform::{generate_waveform, Waveform};
+=======
+use waveform::generate_waveform;
+use waveform::Waveform;
+
+use envelope::{ADSREnvelope, Envelope};
+
+use filter::generate_filter;
+
+use nih_plug::params::enums::EnumParam;
+use nih_plug_vizia::ViziaState;
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 
 const NUM_VOICES: usize = 16;
 const MAX_BLOCK_SIZE: usize = 64;
@@ -109,14 +129,20 @@ struct Voice {
     filter_cut_envelope: ADSREnvelope,
     filter_res_envelope: ADSREnvelope,
     filter: Option<FilterType>,
+<<<<<<< HEAD
     pressure: f32,
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
     pan: f32,        // Added pan field
     tuning: f32,     // Add tuning field
     vibrato: f32,    // Add vibrato field
     expression: f32, // Add expression field
     brightness: f32, // Add brightness field
+<<<<<<< HEAD
     vib_mod: Modulator,
     trem_mod: Modulator,
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 }
 
 impl Default for SubSynth {
@@ -396,7 +422,10 @@ impl Default for SubSynthParams {
     }
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 impl Plugin for SubSynth {
     const NAME: &'static str = "SubSynthBeta";
     const VENDOR: &'static str = "LingYue Synth";
@@ -483,7 +512,7 @@ impl Plugin for SubSynth {
                                 note,
                                 velocity,
                             } => {
-                                let pan: f32 = 0.5;
+                                let pan: f32 = 0.0;
                                 let brightness: f32 = 1.0;
                                 let expression: f32 = 1.0;
                                 let vibrato: f32 = 0.0;
@@ -503,7 +532,11 @@ impl Plugin for SubSynth {
                                 );
                                 // This starts with the attack portion of the amplitude envelope
                                 let (amp_envelope, cutoff_envelope, resonance_envelope) =
+<<<<<<< HEAD
                                     self.construct_envelopes(sample_rate, voice.velocity);
+=======
+                                    self.construct_envelopes(sample_rate, velocity);
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                                 let voice = self.start_voice(
                                     context, timing, voice_id, channel, note,
                                     velocity, // Add velocity parameter
@@ -516,19 +549,28 @@ impl Plugin for SubSynth {
                                     cutoff_envelope,
                                     resonance_envelope,
                                 );
+<<<<<<< HEAD
                                 
                                 voice.vib_mod = vibrato_lfo;
                                 voice.trem_mod = tremolo_lfo;
                                 voice.velocity_sqrt = velocity.sqrt();
                                 voice.phase = initial_phase;
                                 let pitch = voice.tuning + voice.vib_mod.get_modulation() + util::midi_note_to_freq(note)
+=======
+                                voice.velocity_sqrt = velocity.sqrt();
+                                voice.phase = initial_phase;
+                                let pitch = util::midi_note_to_freq(note)
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                                     * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
                                 voice.filter_cut_envelope = cutoff_envelope;
                                 voice.filter_res_envelope = resonance_envelope;
                                 voice.velocity = velocity;
+<<<<<<< HEAD
                                 voice.pan = pan;
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             NoteEvent::NoteOff {
                                 timing: _,
@@ -646,6 +688,7 @@ impl Plugin for SubSynth {
                                 note,
                                 pressure,
                             } => {
+<<<<<<< HEAD
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
@@ -669,6 +712,11 @@ impl Plugin for SubSynth {
                                         }
                                     }
                                 }
+=======
+                                self.handle_poly_pressure_event(
+                                    timing, voice_id, channel, note, pressure,
+                                );
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             NoteEvent::PolyVolume {
                                 timing,
@@ -677,6 +725,7 @@ impl Plugin for SubSynth {
                                 note,
                                 gain,
                             } => {
+<<<<<<< HEAD
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
@@ -700,6 +749,11 @@ impl Plugin for SubSynth {
                                         }
                                     }
                                 }
+=======
+                                self.handle_poly_volume_event(
+                                    timing, voice_id, channel, note, gain,
+                                );
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             NoteEvent::PolyPan {
                                 timing,
@@ -708,6 +762,7 @@ impl Plugin for SubSynth {
                                 note,
                                 pan,
                             } => {
+<<<<<<< HEAD
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
@@ -731,6 +786,9 @@ impl Plugin for SubSynth {
                                         }
                                     }
                                 }
+=======
+                                self.handle_poly_pan_event(timing, voice_id, channel, note, pan);
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             NoteEvent::PolyTuning {
                                 timing,
@@ -739,6 +797,7 @@ impl Plugin for SubSynth {
                                 note,
                                 tuning,
                             } => {
+<<<<<<< HEAD
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
@@ -762,6 +821,11 @@ impl Plugin for SubSynth {
                                         }
                                     }
                                 }
+=======
+                                self.handle_poly_tuning_event(
+                                    timing, voice_id, channel, note, tuning,
+                                );
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             NoteEvent::PolyVibrato {
                                 timing,
@@ -770,6 +834,7 @@ impl Plugin for SubSynth {
                                 note,
                                 vibrato,
                             } => {
+<<<<<<< HEAD
                                 if let Some(voice_idx) = self.get_voice_idx(voice_id.unwrap_or_default()) {
                                     if let Some(voice) = self.voices.get_mut(voice_idx) {
                                         if let Some(voice_inner) = voice {
@@ -793,6 +858,11 @@ impl Plugin for SubSynth {
                                         }
                                     }
                                 }
+=======
+                                self.handle_poly_vibrato_event(
+                                    timing, voice_id, channel, note, vibrato,
+                                );
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                             }
                             // Handle other MIDI events if needed
                             _ => (),
@@ -840,10 +910,11 @@ impl Plugin for SubSynth {
                             }
                             None => &gain,
                         };
-            
+
                         // This is an exponential smoother repurposed as an AR envelope with values between
                         // 0 and 1. When a note off event is received, this envelope will start fading out
                         // again. When it reaches 0, we will terminate the voice.
+<<<<<<< HEAD
                         
                         
                         let mut dc_blocker = filter::DCBlocker::new();
@@ -890,20 +961,45 @@ impl Plugin for SubSynth {
                         // Calculate amplitude for voice
                         let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() + voice.trem_mod.get_modulation();
             
+=======
+                        voice.amp_envelope.advance();
+
+                        // Generate waveform for voice
+                        let generated_sample =
+                            generate_waveform(self.params.waveform.value(), voice.phase);
+
+                        // Apply filters to the generated sample
+                        let mut filtered_sample = generate_filter(
+                            self.params.filter_type.value(),
+                            self.params.filter_cut.value(),
+                            self.params.filter_res.value(),
+                            voice.filter_cut_envelope,
+                            voice.filter_res_envelope,
+                            generated_sample,
+                            sample_rate,
+                        );
+                        filtered_sample.set_sample_rate(sample_rate);
+
+                        // Calculate amplitude for voice
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value();
+
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                         // Apply voice-specific processing
                         let naive_waveform = filtered_sample;
                         let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);
                         let generated_sample = corrected_waveform * amp;
-            
+
+                        // Calculate panning based on voice's pan value
                         // Apply panning and process the sample
-                        let processed_sample = dc_blocker.process(generated_sample);
-                        let processed_left_sample = left_amp * processed_sample;
-                        let processed_right_sample = right_amp * processed_sample;
-            
+                        let processed_sample = filter::DCBlocker::new().process(generated_sample);
+                        let processed_left_sample =
+                            (1.0 - voice.pan).sqrt() as f32 * processed_sample;
+                        let processed_right_sample = voice.pan.sqrt() as f32 * processed_sample;
+
                         // Add the processed sample to the output channels
                         output[0][sample_idx] += processed_left_sample;
                         output[1][sample_idx] += processed_right_sample;
-            
+
                         // Update voice phase
                         voice.phase += voice.phase_delta;
                         if voice.phase >= 1.0 {
@@ -953,7 +1049,10 @@ impl SubSynth {
         (
             ADSREnvelope::new(
                 self.params.amp_attack_ms.value(),
+<<<<<<< HEAD
                 self.params.amp_envelope_level.value(),
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 self.params.amp_decay_ms.value(),
                 self.params.amp_sustain_level.value(),
                 self.params.amp_release_ms.value(),
@@ -962,7 +1061,10 @@ impl SubSynth {
             ),
             ADSREnvelope::new(
                 self.params.filter_cut_attack_ms.value(),
+<<<<<<< HEAD
                 self.params.filter_cut_envelope_level.value(),
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 self.params.filter_cut_decay_ms.value(),
                 self.params.filter_cut_sustain_ms.value(),
                 self.params.filter_cut_release_ms.value(),
@@ -971,7 +1073,10 @@ impl SubSynth {
             ),
             ADSREnvelope::new(
                 self.params.filter_res_attack_ms.value(),
+<<<<<<< HEAD
                 self.params.filter_res_envelope_level.value(),
+=======
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 self.params.filter_res_decay_ms.value(),
                 self.params.filter_res_sustain_ms.value(),
                 self.params.filter_res_release_ms.value(),
@@ -988,12 +1093,20 @@ impl SubSynth {
         voice_id: Option<i32>,
         channel: u8,
         note: u8,
+<<<<<<< HEAD
         velocity: f32,
         pan: f32,
         pressure: f32,
         brightness: f32,
         expression: f32,
         vibrato: f32,
+=======
+        velocity: f32,   // Add velocity parameter
+        pan: f32,        // Add pan parameter
+        brightness: f32, // Add brightness parameter
+        expression: f32, // Add expression parameter
+        vibrato: f32,    // Add vibrato parameter
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         tuning: f32,
         vib_mod: Modulator,
         trem_mod: Modulator,
@@ -1001,6 +1114,8 @@ impl SubSynth {
         filter_cut_envelope: ADSREnvelope,
         filter_res_envelope: ADSREnvelope,
     ) -> &mut Voice {
+        let (amp_envelope, filter_cut_envelope, filter_res_envelope) =
+            self.construct_envelopes(192000.0, velocity);
         let new_voice = Voice {
             voice_id: voice_id.unwrap_or_else(|| compute_fallback_voice_id(note, channel)),
             internal_voice_id: self.next_internal_voice_id,
@@ -1021,13 +1136,17 @@ impl SubSynth {
             voice_gain: None,
             filter_cut_envelope,
             filter_res_envelope,
+<<<<<<< HEAD
             filter,
             vib_mod,
             trem_mod,
+=======
+            filter: Some(self.params.filter_type.value()),
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         };
-    
+
         self.next_internal_voice_id = self.next_internal_voice_id.wrapping_add(1);
-    
+
         if let Some(free_voice_idx) = self.voices.iter().position(|voice| voice.is_none()) {
             let voice = &mut self.voices[free_voice_idx];
             if voice.is_none() {
@@ -1047,6 +1166,7 @@ impl SubSynth {
                 .min_by_key(|voice| voice.as_ref().unwrap().internal_voice_id)
                 .unwrap();
             let oldest_voice = oldest_voice.as_mut().unwrap();
+<<<<<<< HEAD
     
             if oldest_voice.amp_envelope.get_state() == ADSREnvelopeState::Idle ||
                 oldest_voice.amp_envelope.get_state() == ADSREnvelopeState::Release
@@ -1070,6 +1190,17 @@ impl SubSynth {
                 *oldest_voice = new_voice;
             }
     
+=======
+
+            context.send_event(NoteEvent::VoiceTerminated {
+                timing: sample_offset,
+                voice_id: Some(oldest_voice.voice_id),
+                channel: oldest_voice.channel,
+                note: oldest_voice.note,
+            });
+
+            *oldest_voice = new_voice;
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
             oldest_voice
         }
     }
@@ -1083,6 +1214,7 @@ impl SubSynth {
     ) {
         for voice in &mut self.voices {
             if let Some(voice) = voice {
+<<<<<<< HEAD
                 if voice_id == Some(voice.voice_id) || (channel == voice.channel && note == voice.note) {
                     voice.amp_envelope.set_envelope_stage(ADSREnvelopeState::Release);
                     voice.filter_cut_envelope.set_envelope_stage(ADSREnvelopeState::Release);
@@ -1090,11 +1222,20 @@ impl SubSynth {
                     //voice.amp_envelope.advance();
                     //voice.filter_cut_envelope.advance();
                     //voice.filter_res_envelope.advance();
+=======
+                if voice_id == Some(voice.voice_id)
+                    || (channel == voice.channel && note == voice.note)
+                {
+                    voice.amp_envelope.release();
+                    voice.filter_cut_envelope.release();
+                    voice.filter_res_envelope.release();
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
                 }
             }
         }
     }
 
+<<<<<<< HEAD
     fn _find_voice(&mut self, voice_id: Option<i32>, channel: u8, note: u8) -> Option<&mut Voice> {
         self.voices
             .iter_mut()
@@ -1110,6 +1251,50 @@ impl SubSynth {
             })
             .map(|voice| voice.as_mut().unwrap())
     }
+=======
+    fn handle_poly_pressure_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        pressure: f32,
+    ) {
+        // Find the voice associated with the given voice_id or create a new voice
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+        // Adjust the voice parameters based on the pressure value
+        let velocity = pressure; // Assuming pressure represents velocity here
+
+        // Update the voice's velocity and adjust the amplitude envelope
+        voice.velocity = velocity;
+        voice.amp_envelope.set_velocity(velocity);
+
+        // Other actions based on the pressure value if needed
+
+        // Optionally trigger the voice to retrigger the envelope or perform other actions
+        //voice.amp_envelope.trigger();
+        //voice.filter_cut_envelope.trigger();
+        //voice.filter_res_envelope.trigger();
+
+        // Other operations specific to handling PolyPressure event
+    }
+    fn find_voice(&mut self, voice_id: Option<i32>, channel: u8, note: u8) -> Option<&mut Voice> {
+        self.voices
+            .iter_mut()
+            .find(|voice| {
+                let voice_id = voice_id.clone(); // Clone the voice_id for comparison inside the closure
+                if let Some(voice) = voice {
+                    voice.voice_id == voice_id.unwrap_or(voice.voice_id)
+                        && voice.channel == channel
+                        && voice.note == note
+                } else {
+                    false
+                }
+            })
+            .map(|voice| voice.as_mut().unwrap())
+    }
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 
     fn compute_fallback_voice_id(note: u8, channel: u8, next_voice_id: i32) -> i32 {
         // Fallback voice ID computation...
@@ -1137,11 +1322,14 @@ impl SubSynth {
     ) -> &mut Voice {
         // Search for an existing voice with the given voice_id
         if let Some(existing_index) = self.voices.iter().position(|voice| {
-            voice.as_ref().map(|voice_ref| {
-                voice_ref.voice_id == voice_id.unwrap_or(voice_ref.voice_id)
-                    && voice_ref.channel == channel
-                    && voice_ref.note == note
-            }).unwrap_or(false)
+            voice
+                .as_ref()
+                .map(|voice_ref| {
+                    voice_ref.voice_id == voice_id.unwrap_or(voice_ref.voice_id)
+                        && voice_ref.channel == channel
+                        && voice_ref.note == note
+                })
+                .unwrap_or(false)
         }) {
             return self.voices[existing_index].as_mut().unwrap();
         }
@@ -1150,10 +1338,16 @@ impl SubSynth {
         let new_voice_id = voice_id.unwrap_or_else(|| {
             // Generate a fallback voice ID
             self.next_voice_index += 1;
-            Self::compute_fallback_voice_id(note, channel, self.next_voice_index.try_into().unwrap())
+            Self::compute_fallback_voice_id(
+                note,
+                channel,
+                self.next_voice_index.try_into().unwrap(),
+            )
         });
 
         // If no existing voice found, create a new voice
+        let (amp_envelope, filter_cut_envelope, filter_res_envelope) =
+            self.construct_envelopes(192000.0, 1.0);
         let new_voice = Voice {
             voice_id: new_voice_id,
             channel,
@@ -1168,7 +1362,11 @@ impl SubSynth {
             voice_gain: None,
             filter_cut_envelope,
             filter_res_envelope,
+<<<<<<< HEAD
             filter: Some(self.params.filter_type.value()),
+=======
+            filter: Some(FilterType::Lowpass),
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
             pan,
             pressure,
             brightness,
@@ -1198,7 +1396,11 @@ impl SubSynth {
         self.voices[next_voice_index].as_mut().unwrap()
     }
 
+<<<<<<< HEAD
     fn handle_poly_event(
+=======
+    fn handle_poly_volume_event(
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
         &mut self,
         timing: u32,
         voice_id: Option<i32>,
@@ -1238,8 +1440,73 @@ impl SubSynth {
             voice.amp_envelope.set_velocity(gain);
         }
     }
+<<<<<<< HEAD
     
     
+=======
+
+    fn handle_poly_pan_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        pan: f32,
+    ) {
+        let voice = self.find_or_create_voice(voice_id, channel, note, pan, 0.0, 0.0, 0.0, 0.0);
+        voice.pan = pan;
+    }
+
+    fn handle_poly_tuning_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        tuning: f32,
+    ) {
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, tuning, 0.0);
+        voice.tuning = tuning;
+    }
+
+    fn handle_poly_vibrato_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        vibrato: f32,
+    ) {
+        let voice = self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, 0.0, 0.0, vibrato);
+        voice.vibrato = vibrato;
+    }
+
+    fn handle_poly_expression_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        expression: f32,
+    ) {
+        let voice =
+            self.find_or_create_voice(voice_id, channel, note, 0.0, 0.0, expression, 0.0, 0.0);
+        voice.expression = expression;
+    }
+
+    fn handle_poly_brightness_event(
+        &mut self,
+        _timing: u32,
+        voice_id: Option<i32>,
+        channel: u8,
+        note: u8,
+        brightness: f32,
+    ) {
+        let voice =
+            self.find_or_create_voice(voice_id, channel, note, 0.0, brightness, 0.0, 0.0, 0.0);
+        voice.brightness = brightness;
+    }
+>>>>>>> 3482718249a9c468c4ffc5180848ebfa78e2283d
 
     fn choke_voices(
         &mut self,
