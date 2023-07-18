@@ -109,6 +109,7 @@ struct Voice {
     filter_cut_envelope: ADSREnvelope,
     filter_res_envelope: ADSREnvelope,
     filter: Option<FilterType>,
+    pressure: f32,
     pan: f32,        // Added pan field
     tuning: f32,     // Add tuning field
     vibrato: f32,    // Add vibrato field
@@ -645,13 +646,28 @@ impl Plugin for SubSynth {
                                 note,
                                 pressure,
                             } => {
-                                self.handle_poly_pressure_event(
-                                    timing, 
-                                    voice_id, 
-                                    channel, 
-                                    note, 
-                                    pressure,
-                                );
+                                if let Some(voice_idx) = self.get_voice_idx(voice_id) {
+                                    let voice = &mut self.voices[voice_idx];
+                                    if let Some(voice) = voice {
+                                        self.handle_poly_event(
+                                            timing,
+                                            voice_id,
+                                            channel,
+                                            note,
+                                            voice.velocity,
+                                            voice.pan,
+                                            voice.brightness,
+                                            voice.expression,
+                                            voice.tuning,
+                                            pressure,
+                                            &voice.amp_envelope,
+                                            &voice.filter_cut_envelope,
+                                            &voice.filter_res_envelope,
+                                            &voice.vib_mod,
+                                            &voice.trem_mod,
+                                        );
+                                    }
+                                }
                             }
                             NoteEvent::PolyVolume {
                                 timing,
@@ -660,9 +676,28 @@ impl Plugin for SubSynth {
                                 note,
                                 gain,
                             } => {
-                                self.handle_poly_volume_event(
-                                    timing, voice_id, channel, note, gain,
-                                );
+                                if let Some(voice_idx) = self.get_voice_idx(voice_id) {
+                                    let voice = &mut self.voices[voice_idx];
+                                    if let Some(voice) = voice {
+                                        self.handle_poly_event(
+                                            timing,
+                                            voice_id,
+                                            channel,
+                                            note,
+                                            gain,
+                                            voice.pan,
+                                            voice.brightness,
+                                            voice.expression,
+                                            voice.tuning,
+                                            voice.pressure,
+                                            &voice.amp_envelope,
+                                            &voice.filter_cut_envelope,
+                                            &voice.filter_res_envelope,
+                                            &voice.vib_mod,
+                                            &voice.trem_mod,
+                                        );
+                                    }
+                                }
                             }
                             NoteEvent::PolyPan {
                                 timing,
@@ -671,7 +706,28 @@ impl Plugin for SubSynth {
                                 note,
                                 pan,
                             } => {
-                                self.handle_poly_pan_event(timing, voice_id, channel, note, pan);
+                                if let Some(voice_idx) = self.get_voice_idx(voice_id) {
+                                    let voice = &mut self.voices[voice_idx];
+                                    if let Some(voice) = voice {
+                                        self.handle_poly_event(
+                                            timing,
+                                            voice_id,
+                                            channel,
+                                            note,
+                                            voice.velocity,
+                                            pan,
+                                            voice.brightness,
+                                            voice.expression,
+                                            voice.tuning,
+                                            voice.pressure,
+                                            &voice.amp_envelope,
+                                            &voice.filter_cut_envelope,
+                                            &voice.filter_res_envelope,
+                                            &voice.vib_mod,
+                                            &voice.trem_mod,
+                                        );
+                                    }
+                                }
                             }
                             NoteEvent::PolyTuning {
                                 timing,
@@ -680,9 +736,28 @@ impl Plugin for SubSynth {
                                 note,
                                 tuning,
                             } => {
-                                self.handle_poly_tuning_event(
-                                    timing, voice_id, channel, note, tuning,
-                                );
+                                if let Some(voice_idx) = self.get_voice_idx(voice_id) {
+                                    let voice = &mut self.voices[voice_idx];
+                                    if let Some(voice) = voice {
+                                        self.handle_poly_event(
+                                            timing,
+                                            voice_id,
+                                            channel,
+                                            note,
+                                            voice.velocity,
+                                            voice.pan,
+                                            voice.brightness,
+                                            voice.expression,
+                                            tuning,
+                                            voice.pressure,
+                                            &voice.amp_envelope,
+                                            &voice.filter_cut_envelope,
+                                            &voice.filter_res_envelope,
+                                            &voice.vib_mod,
+                                            &voice.trem_mod,
+                                        );
+                                    }
+                                }
                             }
                             NoteEvent::PolyVibrato {
                                 timing,
@@ -691,9 +766,28 @@ impl Plugin for SubSynth {
                                 note,
                                 vibrato,
                             } => {
-                                self.handle_poly_vibrato_event(
-                                    timing, voice_id, channel, note, vibrato,
-                                );
+                                if let Some(voice_idx) = self.get_voice_idx(voice_id) {
+                                    let voice = &mut self.voices[voice_idx];
+                                    if let Some(voice) = voice {
+                                        self.handle_poly_event(
+                                            timing,
+                                            voice_id,
+                                            channel,
+                                            note,
+                                            voice.velocity,
+                                            voice.pan,
+                                            voice.brightness,
+                                            voice.expression,
+                                            voice.tuning,
+                                            voice.pressure,
+                                            &voice.amp_envelope,
+                                            &voice.filter_cut_envelope,
+                                            &voice.filter_res_envelope,
+                                            &voice.vib_mod,
+                                            &voice.trem_mod,
+                                        );
+                                    }
+                                }
                             }
                             // Handle other MIDI events if needed
                             _ => (),
@@ -1133,12 +1227,12 @@ impl SubSynth {
         brightness: f32,
         expression: f32,
         tuning: f32,
-        vibrato: f32,
-        amp_envelope: ADSREnvelope,
-        filter_cut_envelope: ADSREnvelope,
-        filter_res_envelope: ADSREnvelope,
-        vib_mod: Modulator,
-        trem_mod: Modulator,
+        pressure: f32,
+        amp_envelope: Option<&ADSREnvelope>,
+        filter_cut_envelope: Option<&ADSREnvelope>,
+        filter_res_envelope: Option<&ADSREnvelope>,
+        vibrato_modulator: Option<&Modulator>,
+        tremolo_modulator: Option<&Modulator>,
     ) {
         let voice = self.find_or_create_voice(
             voice_id,
@@ -1148,37 +1242,21 @@ impl SubSynth {
             brightness,
             expression,
             tuning,
-            vibrato,
-            amp_envelope,
-            filter_cut_envelope,
-            filter_res_envelope,
-            vib_mod,
-            trem_mod,
+            pressure,
+            amp_envelope.cloned(),
+            filter_cut_envelope.cloned(),
+            filter_res_envelope.cloned(),
+            vibrato_modulator.cloned(),
+            tremolo_modulator.cloned(),
         );
-    
-        match event_type {
-            PolyEventType::Volume => {
-                voice.velocity = gain;
-                voice.velocity_sqrt = gain.sqrt();
-                voice.amp_envelope.set_velocity(gain);
-            }
-            PolyEventType::Pan => {
-                voice.pan = pan;
-            }
-            PolyEventType::Tuning => {
-                voice.tuning = tuning;
-            }
-            PolyEventType::Vibrato => {
-                voice.vibrato = vibrato;
-            }
-            PolyEventType::Expression => {
-                voice.expression = expression;
-            }
-            PolyEventType::Brightness => {
-                voice.brightness = brightness;
-            }
+        voice.velocity = gain;
+        voice.velocity_sqrt = gain.sqrt();
+        if let Some(amp_envelope) = amp_envelope {
+            voice.amp_envelope = amp_envelope.clone();
+            voice.amp_envelope.set_velocity(gain);
         }
     }
+    
     
 
     fn choke_voices(
