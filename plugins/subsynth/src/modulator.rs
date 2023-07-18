@@ -1,12 +1,16 @@
 use std::f32::consts::PI;
-enum OscillatorShape {
+use enum_iterator::Sequence;
+use nih_plug::params::enums::Enum;
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Enum, Sequence)]
+pub enum OscillatorShape {
     Sine,
     Triangle,
     Sawtooth,
     Square,
 }
-
-struct Modulator {
+#[derive(Clone)]
+pub struct Modulator {
     modulation_rate: f32,
     peak_intensity: f32,
     attack_duration: f32,
@@ -16,7 +20,7 @@ struct Modulator {
 }
 
 impl Modulator {
-    fn new(modulation_rate: f32, peak_intensity: f32, attack_duration: f32, oscillator_shape: OscillatorShape) -> Self {
+    pub fn new(modulation_rate: f32, peak_intensity: f32, attack_duration: f32, oscillator_shape: OscillatorShape) -> Self {
         Modulator {
             modulation_rate,
             peak_intensity,
@@ -27,7 +31,7 @@ impl Modulator {
         }
     }
     
-    fn trigger(&mut self) {
+    pub fn trigger(&mut self) {
         self.current_time = 0.0;
         self.triggered = true;
     }
@@ -42,7 +46,7 @@ impl Modulator {
         }
     }
 
-    fn get_modulation(&self) -> f32 {
+    pub fn get_modulation(&self) -> f32 {
         let attack_progress = self.current_time / self.attack_duration;
         let intensity = self.peak_intensity * attack_progress;
         let modulation = match self.oscillator_shape {
