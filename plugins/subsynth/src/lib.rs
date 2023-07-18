@@ -644,6 +644,7 @@ impl Plugin for SubSynth {
                         let mut dc_blocker = filter::DCBlocker::new();
                         // Apply filter
                         let filter_type = self.params.filter_type.value();
+                        voice.filter = Some(filter_type);
                         let cutoff = self.params.filter_cut.value();
                         let resonance = self.params.filter_res.value();
                         let waveform = self.params.waveform.value();
@@ -661,7 +662,7 @@ impl Plugin for SubSynth {
         
                         // Apply filters to the generated sample
                         let mut filtered_sample= generate_filter(
-                                filter_type,
+                                voice.filter.unwrap(),
                                 cutoff,
                                 resonance,
                                 &mut voice.filter_cut_envelope,
