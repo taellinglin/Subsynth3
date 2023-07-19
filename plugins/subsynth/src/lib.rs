@@ -524,8 +524,8 @@ impl Plugin for SubSynth {
                                 voice.phase = initial_phase;
                                 voice.vib_mod.trigger();
                                 voice.trem_mod.trigger();
-                                let pitch = sample_rate * voice.vib_mod.get_modulation(sample_rate) * 12.0 + util::midi_note_to_freq(note)
-                                    * (2.0_f32).powf((tuning + voice.tuning) / 12.0);
+                                let pitch = util::midi_note_to_freq(note)
+                                    * (2.0_f32).powf((tuning + voice.tuning + sample_rate * 12.0 * voice.vib_mod.get_modulation(sample_rate)) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
                                 voice.filter_cut_envelope = cutoff_envelope;
@@ -958,7 +958,7 @@ impl Plugin for SubSynth {
                         //voice.trem_mod.trigger();
 
                         // Calculate amplitude for voice
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() + (voice.trem_mod.get_modulation(sample_rate));
+                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() * 0.5 *(voice.trem_mod.get_modulation(sample_rate)+1.0) ;
             
                         // Apply voice-specific processing
                         let naive_waveform = filtered_sample;
@@ -1110,8 +1110,8 @@ impl SubSynth {
                 voice.amp_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 voice.filter_cut_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
                 voice.filter_res_envelope.set_envelope_stage(ADSREnvelopeState::Attack);
-                //voice.vib_mod.trigger();
-                //voice.trem_mod.trigger();
+                voice.vib_mod.trigger();
+                voice.trem_mod.trigger();
             }
             voice.as_mut().unwrap()
         } else {
