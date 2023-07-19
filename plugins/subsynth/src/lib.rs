@@ -482,7 +482,7 @@ impl Plugin for SubSynth {
                                 note,
                                 velocity,
                             } => {
-                                let pan: f32 = 0.0;
+                                let pan: f32 = 0.5;
                                 let pressure: f32 = 1.0;
                                 let brightness: f32 = 1.0;
                                 let expression: f32 = 1.0;
