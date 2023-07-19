@@ -15,7 +15,7 @@ struct Data {
 impl Model for Data {}
 
 pub(crate) fn default_state() -> Arc<ViziaState> {
-    ViziaState::new(|| (840, 520))
+    ViziaState::new(|| (840, 480))
 }
 
 fn create_label<'a, T>(
