@@ -343,7 +343,7 @@ impl Default for SubSynthParams {
                 "Vibrato Intensity",
                 0.0,
                 FloatRange::Linear {
-                    min: -1.0,
+                    min: 0.0,
                     max: 1.0,
                 },
             )
@@ -354,10 +354,10 @@ impl Default for SubSynthParams {
                 1.0,
                 FloatRange::Linear {
                     min: 0.0,
-                    max: 10.0,
+                    max: 32.0,
                 },
             )
-            .with_step_size(0.01)
+            .with_step_size(1.0)
             .with_unit(" Hz"),
             tremolo_attack: FloatParam::new(
                 "Tremolo Attack",
@@ -524,14 +524,15 @@ impl Plugin for SubSynth {
                                 voice.phase = initial_phase;
                                 voice.vib_mod.trigger();
                                 voice.trem_mod.trigger();
-                                let pitch = util::midi_note_to_freq(note)
-                                    * (2.0_f32).powf((tuning + voice.tuning + sample_rate * 12.0 * voice.vib_mod.get_modulation(sample_rate)) / 12.0);
+                                let mut pitch = util::midi_note_to_freq(note)
+                                    * (2.0_f32).powf((tuning + voice.tuning ) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
                                 voice.filter_cut_envelope = cutoff_envelope;
                                 voice.filter_res_envelope = resonance_envelope;
                                 voice.velocity = velocity;
                                 voice.pan = pan;
+                                
                             }
                             NoteEvent::NoteOff {
                                 timing: _,
@@ -925,18 +926,26 @@ impl Plugin for SubSynth {
                         let cutoff = self.params.filter_cut.value();
                         let resonance = self.params.filter_res.value();
                         let waveform = self.params.waveform.value();
-            
+                        //voice.pitch *= 0.5*(voice.vib_mod.get_modulation(sample_rate)+1)
                         // Calculate panning based on voice's pan value
-                        let _pan = voice.pan;
-                        let left_amp = (1.0 - voice.pan).sqrt() as f32;
-                        let right_amp = voice.pan.sqrt() as f32;
-            
+                        let pan = voice.pan;
+                        let left_amp = (1.0 - pan).sqrt() as f32;
+                        let right_amp = pan.sqrt() as f32;
+
+                        //filtered_sample.set_sample_rate(sample_rate);
+                        voice.filter_cut_envelope.advance();
+                        voice.filter_res_envelope.advance();
+                        voice.amp_envelope.advance();
+                        //voice.vib_mod.trigger();
+                        //voice.trem_mod.trigger();
+
                         // Generate waveform for voice
                         let generated_sample = generate_waveform(waveform, voice.phase);
                         voice.filter_cut_envelope.set_scale(self.params.filter_cut_envelope_level.value());
                         voice.filter_res_envelope.set_scale(self.params.filter_res_envelope_level.value());
                         voice.amp_envelope.set_scale(self.params.amp_envelope_level.value());
-        
+                        
+                        
                         // Apply filters to the generated sample
                         let filtered_sample= generate_filter(
                                 voice.filter.unwrap(),
@@ -950,12 +959,7 @@ impl Plugin for SubSynth {
                         
 
 
-                        //filtered_sample.set_sample_rate(sample_rate);
-                        voice.filter_cut_envelope.advance();
-                        voice.filter_res_envelope.advance();
-                        voice.amp_envelope.advance();
-                        //voice.vib_mod.trigger();
-                        //voice.trem_mod.trigger();
+                        
 
                         // Calculate amplitude for voice
                         let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() * 0.5 *(voice.trem_mod.get_modulation(sample_rate)+1.0) ;
