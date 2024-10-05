@@ -532,6 +532,7 @@ impl Plugin for SubSynth {
                                 voice.filter_res_envelope = resonance_envelope;
                                 voice.velocity = velocity;
                                 voice.pan = pan;
+
                                 
                             }
                             NoteEvent::NoteOff {
@@ -926,12 +927,16 @@ impl Plugin for SubSynth {
                         let cutoff = self.params.filter_cut.value();
                         let resonance = self.params.filter_res.value();
                         let waveform = self.params.waveform.value();
-                        //voice.pitch *= 0.5*(voice.vib_mod.get_modulation(sample_rate)+1)
+                        let vib_int: f32 = self.params.vibrato_intensity.value();
+                        let vib_rate: f32 = self.params.vibrato_rate.value();
                         // Calculate panning based on voice's pan value
                         let pan = voice.pan;
                         let left_amp = (1.0 - pan).sqrt() as f32;
                         let right_amp = pan.sqrt() as f32;
-
+                        // Vibrato modulation (LFO-based)
+                        let vibrato_modulation = voice.vib_mod.get_modulation(sample_rate);
+                        // Apply vibrato to the voice's phase_delta (which affects pitch)
+                        let vibrato_phase_delta = voice.phase_delta * (1.0 + (vib_int * vibrato_modulation)); 
                         //filtered_sample.set_sample_rate(sample_rate);
                         voice.filter_cut_envelope.advance();
                         voice.filter_res_envelope.advance();
@@ -980,7 +985,7 @@ impl Plugin for SubSynth {
                         output[1][sample_idx] += processed_right_sample;
 
                         // Update voice phase
-                        voice.phase += voice.phase_delta;
+                        voice.phase += vibrato_phase_delta;
                         if voice.phase >= 1.0 {
                             voice.phase -= 1.0;
                         }

@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 nih_plug = { path = "../../", features = ["assert_process_allocs"] }
 nih_plug_vizia = { path = "../../nih_plug_vizia" }
 
+
 enum-iterator = "1.4.1"
 atomic_float = "0.1"
 
