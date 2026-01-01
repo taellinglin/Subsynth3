@@ -63,15 +63,8 @@ impl ADSREnvelope {
 
     pub fn set_velocity(&mut self, velocity: f32) {
         self.velocity = velocity;
-
-        // Adjust envelope parameters based on velocity
-        // Example: Modify attack and release times based on velocity
-        self.attack *= velocity;
-        self.release *= velocity;
-        self.decay *= velocity;
-        self.sustain *= velocity;
-
-        // Additional adjustments based on velocity if needed
+        // Velocity is already stored and can be used for velocity-sensitive scaling
+        // Don't modify the envelope time parameters - they should remain constant
     }
 
     pub fn get_time(&mut self) -> f32 {
@@ -112,29 +105,27 @@ impl ADSREnvelope {
     pub fn advance(&mut self) {
         self.time += self.delta_time_per_sample;
 
-        // Adjust envelope parameters based on velocity sensitivity
-        let change = self.time * self.velocity;
-
+        // Note: sustain is a level, not a time duration
+        // The sustain stage continues indefinitely until note is released
         match self.state {
-            // Check if the envelope has completed and move to the next stage
-            _ if self.state != ADSREnvelopeState::Idle && change >= self.release => {
-                self.state = ADSREnvelopeState::Idle;
-                self.time = 0.0;
-            }
-            ADSREnvelopeState::Attack if change >= self.attack => {
+            ADSREnvelopeState::Attack if self.time >= self.attack => {
                 self.state = ADSREnvelopeState::Hold;
                 self.time = 0.0;
             }
-            ADSREnvelopeState::Hold if change >= self.attack + self.hold => {
+            ADSREnvelopeState::Hold if self.time >= self.hold => {
                 self.state = ADSREnvelopeState::Decay;
                 self.time = 0.0;
             }
-            ADSREnvelopeState::Decay if change >= self.attack + self.hold + self.decay => {
+            ADSREnvelopeState::Decay if self.time >= self.decay => {
                 self.state = ADSREnvelopeState::Sustain;
                 self.time = 0.0;
             }
-            ADSREnvelopeState::Sustain if change >= self.attack + self.hold + self.decay + self.sustain => {
-                self.state = ADSREnvelopeState::Release;
+            // Sustain stage stays until note released (set_envelope_stage called)
+            ADSREnvelopeState::Sustain => {
+                // Remain in sustain until explicitly released
+            }
+            ADSREnvelopeState::Release if self.time >= self.release => {
+                self.state = ADSREnvelopeState::Idle;
                 self.time = 0.0;
             }
             _ => {}
@@ -167,11 +158,7 @@ impl ADSREnvelope {
     }
     pub fn set_scale(&mut self, envelope_levels: f32) {
         self.scale = envelope_levels;
-        // Additional scaling for other envelope parameters if needed
-        self.attack *= self.scale;
-        self.decay *= self.scale;
-        self.sustain *= self.scale;
-        self.release *= self.scale;
+        // Scale is applied in get_value(), not to the time parameters
     }
     pub fn set_hold(&mut self, hold: f32) {
         self.hold = hold;
@@ -180,50 +167,39 @@ impl ADSREnvelope {
 
 impl Envelope for ADSREnvelope {
     fn get_value(&mut self) -> f32 {
-        match self.state {
+        let base_value = match self.state {
             ADSREnvelopeState::Idle => 0.0,
             ADSREnvelopeState::Attack => {
-                if self.time >= self.attack {
-                    self.state = ADSREnvelopeState::Hold;
-                    self.time = 0.0;
-                    self.previous_value()
+                if self.attack <= 0.0 {
+                    1.0 // Instant attack
                 } else {
-                    self.time / self.attack
+                    (self.time / self.attack).min(1.0)
                 }
             }
             ADSREnvelopeState::Hold => {
-                if self.time >= self.hold {
-                    self.state = ADSREnvelopeState::Decay;
-                    self.time = 0.0;
-                }
-                self.previous_value()
+                1.0 // Hold at peak
             }
             ADSREnvelopeState::Decay => {
-                if self.time >= self.decay {
-                    self.state = ADSREnvelopeState::Sustain;
-                    self.time = 0.0;
-                    self.previous_value()
+                if self.decay <= 0.0 {
+                    self.sustain // Instant decay
                 } else {
-                    1.0 - (1.0 - self.sustain) * (self.time / self.decay)
+                    1.0 - (1.0 - self.sustain) * (self.time / self.decay).min(1.0)
                 }
             }
             ADSREnvelopeState::Sustain => {
-                if !self.is_sustained {
-                    self.state = ADSREnvelopeState::Release;
-                    self.time = 0.0;
-                }
-                self.sustain
+                self.sustain // Hold at sustain level
             }
             ADSREnvelopeState::Release => {
-                if self.time >= self.release {
-                    self.state = ADSREnvelopeState::Idle;
-                    self.time = 0.0;
-                    0.0
+                if self.release <= 0.0 {
+                    0.0 // Instant release
                 } else {
-                    self.sustain * (1.0 - (self.time / self.release))
+                    self.sustain * (1.0 - (self.time / self.release).min(1.0))
                 }
             }
-        }
+        };
+        
+        // Apply scale factor (for envelope level control)
+        base_value * self.scale
     }
 
     fn trigger(&mut self) {
@@ -246,6 +222,6 @@ impl Envelope for ADSREnvelope {
         self.state = stage;
     }
     fn set_scale(&mut self, envelope_levels: f32) {
-        self.set_scale(envelope_levels);
+        self.scale = envelope_levels;
     }
 }

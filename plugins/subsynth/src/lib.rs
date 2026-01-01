@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use modulator::{Modulator, OscillatorShape};
 use envelope::{ADSREnvelope, Envelope, ADSREnvelopeState};
-use filter::{generate_filter, FilterType, Filter};
+use filter::{FilterType, Filter};
 use waveform::{generate_waveform, Waveform};
 
 const NUM_VOICES: usize = 16;
@@ -68,6 +68,8 @@ struct SubSynthParams {
     filter_cut: FloatParam,
     #[id = "filter_res"]
     filter_res: FloatParam,
+    #[id = "filter_amount"]
+    filter_amount: FloatParam,
     // New parameters for ADSR envelope levels
     #[id = "amp_env_level"]
     amp_envelope_level: FloatParam,
@@ -109,6 +111,11 @@ struct Voice {
     filter_cut_envelope: ADSREnvelope,
     filter_res_envelope: ADSREnvelope,
     filter: Option<FilterType>,
+    lowpass_filter: filter::LowpassFilter,
+    highpass_filter: filter::HighpassFilter,
+    bandpass_filter: filter::BandpassFilter,
+    notch_filter: filter::NotchFilter,
+    statevariable_filter: filter::StatevariableFilter,
     pressure: f32,
     pan: f32,        // Added pan field
     tuning: f32,     // Add tuning field
@@ -197,22 +204,36 @@ impl Default for SubSynthParams {
             filter_type: EnumParam::new("Filter Type", FilterType::None),
             filter_cut: FloatParam::new(
                 "Filter Cutoff",
-                200.0,
-                FloatRange::Linear {
+                1000.0,
+                FloatRange::Skewed {
                     min: 20.0,
-                    max: 10000.0,
+                    max: 20000.0,
+                    factor: FloatRange::skew_factor(-2.0),
                 },
             )
-            .with_unit(" Hz"),
+            .with_unit(" Hz")
+            .with_smoother(SmoothingStyle::Logarithmic(10.0)),
             filter_res: FloatParam::new(
                 "Filter Resonance",
-                0.0,
+                0.5,
                 FloatRange::Linear {
                     min: 0.0,
-                    max: 10.0,
+                    max: 1.0,
                 },
             )
-            .with_unit(" Q"),
+            .with_smoother(SmoothingStyle::Linear(10.0)),
+            filter_amount: FloatParam::new(
+                "Filter Amount",
+                1.0,
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 1.0,
+                },
+            )
+            .with_step_size(0.01)
+            .with_unit("%")
+            .with_value_to_string(formatters::v2s_f32_percentage(2))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
             filter_cut_attack_ms: FloatParam::new(
                 "Filter Cut Attack",
                 1.0,
@@ -238,14 +259,12 @@ impl Default for SubSynthParams {
             filter_cut_sustain_ms: FloatParam::new(
                 "Filter Cut Sustain",
                 1.0,
-                FloatRange::Skewed {
-                    min: -1.0,
+                FloatRange::Linear {
+                    min: 0.0,
                     max: 1.0,
-                    factor: FloatRange::skew_factor(-1.0),
                 },
             )
-            .with_step_size(0.01)
-            .with_unit(" ms"),
+            .with_step_size(0.01),
             filter_cut_release_ms: FloatParam::new(
                 "Filter Cut Release",
                 1.0,
@@ -282,14 +301,12 @@ impl Default for SubSynthParams {
             filter_res_sustain_ms: FloatParam::new(
                 "Filter Resonance Sustain",
                 1.0,
-                FloatRange::Skewed {
-                    min: -1.0,
+                FloatRange::Linear {
+                    min: 0.0,
                     max: 1.0,
-                    factor: FloatRange::skew_factor(-1.0),
                 },
             )
-            .with_step_size(0.01)
-            .with_unit(" ms"),
+            .with_step_size(0.01),
             filter_res_release_ms: FloatParam::new(
                 "Filter Resonance Release",
                 1.0,
@@ -312,18 +329,18 @@ impl Default for SubSynthParams {
             .with_step_size(0.01),
             filter_cut_envelope_level: FloatParam::new(
                 "Filter Cutoff Envelope Level",
-                1.0,
+                0.0,
                 FloatRange::Linear {
-                    min: -1.0,
+                    min: 0.0,
                     max: 1.0,
                 },
             )
             .with_step_size(0.01),
             filter_res_envelope_level: FloatParam::new(
                 "Filter Resonance Envelope Level",
-                1.0,
+                0.0,
                 FloatRange::Linear {
-                    min: -1.0,
+                    min: 0.0,
                     max: 1.0,
                 },
             )
@@ -489,13 +506,13 @@ impl Plugin for SubSynth {
                                 let vibrato: f32 = 0.0;
                                 let tuning: f32 = 0.0;
                                 let initial_phase: f32 = self.prng.gen();
-                                let mut vibrato_lfo = Modulator::new(
+                                let vibrato_lfo = Modulator::new(
                                     self.params.vibrato_rate.value(), 
                                     self.params.vibrato_intensity.value(), 
                                     self.params.vibrato_attack.value(), 
                                     self.params.vibrato_shape.value(),
                                 );
-                                let mut tremolo_lfo = Modulator::new(
+                                let tremolo_lfo = Modulator::new(
                                     self.params.tremolo_rate.value(), 
                                     self.params.tremolo_intensity.value(), 
                                     self.params.tremolo_attack.value(), 
@@ -516,6 +533,7 @@ impl Plugin for SubSynth {
                                     cutoff_envelope,
                                     resonance_envelope,
                                     self.params.filter_type.value(),
+                                    sample_rate,  // Pass actual sample rate
                                 );
                                 
                                 voice.vib_mod = vibrato_lfo.clone();
@@ -524,7 +542,7 @@ impl Plugin for SubSynth {
                                 voice.phase = initial_phase;
                                 voice.vib_mod.trigger();
                                 voice.trem_mod.trigger();
-                                let mut pitch = util::midi_note_to_freq(note)
+                                let pitch = util::midi_note_to_freq(note)
                                     * (2.0_f32).powf((tuning + voice.tuning ) / 12.0);
                                 voice.phase_delta = pitch / sample_rate;
                                 voice.amp_envelope = amp_envelope;
@@ -918,7 +936,7 @@ impl Plugin for SubSynth {
                         // again. When it reaches 0, we will terminate the voice.
                         
                         
-                        let mut dc_blocker = filter::DCBlocker::new();
+                        let dc_blocker = filter::DCBlocker::new();
                         // Apply filter
                         let filter_type = self.params.filter_type.value();
                         let vib_shape =  self.params.vibrato_shape.value();
@@ -938,47 +956,86 @@ impl Plugin for SubSynth {
                         // Apply vibrato to the voice's phase_delta (which affects pitch)
                         let vibrato_phase_delta = voice.phase_delta * (1.0 + (vib_int * vibrato_modulation)); 
                         //filtered_sample.set_sample_rate(sample_rate);
+                        // Advance envelopes once per sample
+                        voice.amp_envelope.advance();
                         voice.filter_cut_envelope.advance();
                         voice.filter_res_envelope.advance();
-                        voice.amp_envelope.advance();
-                        //voice.vib_mod.trigger();
-                        //voice.trem_mod.trigger();
 
                         // Generate waveform for voice
                         let generated_sample = generate_waveform(waveform, voice.phase);
-                        voice.filter_cut_envelope.set_scale(self.params.filter_cut_envelope_level.value());
-                        voice.filter_res_envelope.set_scale(self.params.filter_res_envelope_level.value());
-                        voice.amp_envelope.set_scale(self.params.amp_envelope_level.value());
                         
+                        // Get envelope values (scaled from 0-1)
+                        let filter_cut_env_value = voice.filter_cut_envelope.get_value();
+                        let filter_res_env_value = voice.filter_res_envelope.get_value();
                         
-                        // Apply filters to the generated sample
-                        let filtered_sample= generate_filter(
-                                voice.filter.unwrap(),
-                                cutoff,
-                                resonance,
-                                &mut voice.filter_cut_envelope,
-                                &mut voice.filter_res_envelope,
-                                generated_sample,
-                                sample_rate,
-                            );
+                        // Apply envelope modulation to filter parameters
+                        // Envelope level controls the depth of modulation (0-1 range)
+                        let env_cut_amount = self.params.filter_cut_envelope_level.value().max(0.0).min(1.0);
+                        let env_res_amount = self.params.filter_res_envelope_level.value().max(0.0).min(1.0);
                         
+                        // Modulate cutoff and resonance
+                        // When env_amount = 0: use base value only
+                        // When env_amount = 1: envelope fully controls the parameter (0 to base value)
+                        // Formula: base * (1 - amount + amount * envelope)
+                        let cutoff_multiplier = 1.0 - env_cut_amount + (env_cut_amount * filter_cut_env_value);
+                        let modulated_cutoff = cutoff * cutoff_multiplier;
+                        
+                        let res_multiplier = 1.0 - env_res_amount + (env_res_amount * filter_res_env_value);
+                        let modulated_resonance = resonance * res_multiplier;
+                        
+                        // Clamp to valid ranges
+                        let modulated_cutoff = modulated_cutoff.max(20.0).min(20000.0);
+                        let modulated_resonance = modulated_resonance.max(0.0).min(1.0);
+                        
+                        // Apply filters using stored filter instances
+                        let filtered_sample = match voice.filter.unwrap() {
+                            FilterType::None => generated_sample,
+                            FilterType::Lowpass => {
+                                voice.lowpass_filter.set_cutoff(modulated_cutoff);
+                                voice.lowpass_filter.set_resonance(modulated_resonance);
+                                voice.lowpass_filter.process(generated_sample)
+                            }
+                            FilterType::Highpass => {
+                                voice.highpass_filter.set_cutoff(modulated_cutoff);
+                                voice.highpass_filter.set_resonance(modulated_resonance);
+                                voice.highpass_filter.process(generated_sample)
+                            }
+                            FilterType::Bandpass => {
+                                voice.bandpass_filter.set_cutoff(modulated_cutoff);
+                                voice.bandpass_filter.set_resonance(modulated_resonance);
+                                voice.bandpass_filter.process(generated_sample)
+                            }
+                            FilterType::Notch => {
+                                voice.notch_filter.set_cutoff(modulated_cutoff);
+                                voice.notch_filter.set_resonance(modulated_resonance);
+                                voice.notch_filter.process(generated_sample)
+                            }
+                            FilterType::Statevariable => {
+                                voice.statevariable_filter.set_cutoff(modulated_cutoff);
+                                voice.statevariable_filter.set_resonance(modulated_resonance);
+                                voice.statevariable_filter.process(generated_sample)
+                            }
+                        };
+                        
+                        // Apply filter amount (dry/wet blend)
+                        let filter_amount = self.params.filter_amount.value();
+                        let final_sample = generated_sample * (1.0 - filter_amount) + filtered_sample * filter_amount;
 
-
-                        
-
-                        // Calculate amplitude for voice
-                        let amp = voice.velocity_sqrt * gain[value_idx] * voice.amp_envelope.get_value() * 0.5 *(voice.trem_mod.get_modulation(sample_rate)+1.0) ;
+                        // Calculate amplitude for voice with envelope level scaling
+                        let amp_env_value = voice.amp_envelope.get_value();
+                        let amp_env_level = self.params.amp_envelope_level.value();
+                        let amp = voice.velocity_sqrt * gain[value_idx] * (amp_env_value * amp_env_level) * 0.5 *(voice.trem_mod.get_modulation(sample_rate)+1.0) ;
             
-                        // Apply voice-specific processing
-                        let naive_waveform = filtered_sample;
+                        // Apply voice-specific processing to the filtered sample
+                        let naive_waveform = final_sample;
                         let corrected_waveform = naive_waveform - SubSynth::poly_blep(voice.phase, voice.phase_delta);
-                        let generated_sample = corrected_waveform * amp;
+                        let processed_sample = corrected_waveform * amp;
 
                         // Calculate panning based on voice's pan value
-                        // Apply panning and process the sample
-                        let processed_sample = filter::DCBlocker::new().process(generated_sample);
-                        let processed_left_sample = (1.0 - voice.pan).sqrt() as f32 * processed_sample;
-                        let processed_right_sample = voice.pan.sqrt() as f32 * processed_sample;
+                        // Apply panning and DC blocking
+                        let dc_blocked_sample = filter::DCBlocker::new().process(processed_sample);
+                        let processed_left_sample = (1.0 - voice.pan).sqrt() as f32 * dc_blocked_sample;
+                        let processed_right_sample = voice.pan.sqrt() as f32 * dc_blocked_sample;
 
                         // Add the processed sample to the output channels
                         output[0][sample_idx] += processed_left_sample;
@@ -997,7 +1054,7 @@ impl Plugin for SubSynth {
             // the previous loop but this is simpler.
             for voice in &mut self.voices {
                 if let Some(v) = voice {
-                    if v.releasing && v.amp_envelope.previous_value() == 0.0 {
+                    if v.releasing && v.amp_envelope.get_state() == ADSREnvelopeState::Idle {
                         context.send_event(NoteEvent::VoiceTerminated {
                             timing: block_end as u32,
                             voice_id: Some(v.voice_id),
@@ -1081,9 +1138,9 @@ impl SubSynth {
         filter_cut_envelope: ADSREnvelope,
         filter_res_envelope: ADSREnvelope,
         filter: FilterType,
+        sample_rate: f32,
     ) -> &mut Voice {
-        let (amp_envelope, filter_cut_envelope, filter_res_envelope) =
-            self.construct_envelopes(192000.0, velocity);
+        // Use the passed envelopes instead of creating new ones
         let new_voice = Voice {
             voice_id: voice_id.unwrap_or_else(|| compute_fallback_voice_id(note, channel)),
             internal_voice_id: self.next_internal_voice_id,
@@ -1105,6 +1162,11 @@ impl SubSynth {
             filter_cut_envelope,
             filter_res_envelope,
             filter: Some(filter),
+            lowpass_filter: filter::LowpassFilter::new(1000.0, 0.5, sample_rate),
+            highpass_filter: filter::HighpassFilter::new(1000.0, 0.5, sample_rate),
+            bandpass_filter: filter::BandpassFilter::new(1000.0, 0.5, sample_rate),
+            notch_filter: filter::NotchFilter::new(1000.0, 1.0, sample_rate),
+            statevariable_filter: filter::StatevariableFilter::new(1000.0, 0.5, sample_rate),
             vib_mod,
             trem_mod,
         };
@@ -1167,12 +1229,10 @@ impl SubSynth {
         for voice in &mut self.voices {
             if let Some(voice) = voice {
                 if voice_id == Some(voice.voice_id) || (channel == voice.channel && note == voice.note) {
+                    voice.releasing = true;
                     voice.amp_envelope.set_envelope_stage(ADSREnvelopeState::Release);
                     voice.filter_cut_envelope.set_envelope_stage(ADSREnvelopeState::Release);
                     voice.filter_res_envelope.set_envelope_stage(ADSREnvelopeState::Release);
-                    //voice.amp_envelope.advance();
-                    //voice.filter_cut_envelope.advance();
-                    //voice.filter_res_envelope.advance();
                 }
             }
         }
@@ -1261,6 +1321,11 @@ impl SubSynth {
             filter_cut_envelope,
             filter_res_envelope,
             filter: Some(self.params.filter_type.value()),
+            lowpass_filter: filter::LowpassFilter::new(1000.0, 0.5, 192000.0),
+            highpass_filter: filter::HighpassFilter::new(1000.0, 0.5, 192000.0),
+            bandpass_filter: filter::BandpassFilter::new(1000.0, 0.5, 192000.0),
+            notch_filter: filter::NotchFilter::new(1000.0, 1.0, 192000.0),
+            statevariable_filter: filter::StatevariableFilter::new(1000.0, 0.5, 192000.0),
             pan,
             pressure,
             brightness,

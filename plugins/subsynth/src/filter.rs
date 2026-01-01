@@ -19,6 +19,7 @@ pub trait Filter: Send {
     fn set_sample_rate(&mut self, sample_rate: f32);
 }
 
+#[derive(Debug, Clone)]
 pub struct HighpassFilter {
     cutoff: f32,
     resonance: f32,
@@ -52,13 +53,21 @@ impl HighpassFilter {
 
 impl Filter for HighpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff;
-        let resonance = self.resonance;
-        let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
-        let r = 1.0 - resonance;
-        self.prev_output = c * (input - self.prev_input + r * self.prev_output);
-        self.prev_input = input;
-        self.prev_output
+        let cutoff = self.cutoff.max(20.0).min(20000.0);
+        let resonance = self.resonance.max(0.0).min(0.99);
+        
+        // Calculate filter coefficient
+        let omega = 2.0 * std::f32::consts::PI * cutoff / self.sample_rate;
+        let alpha = omega / (omega + 1.0);
+        
+        // Highpass = input - lowpass
+        let lowpass = self.prev_output + alpha * (input - self.prev_output);
+        let highpass = input - lowpass;
+        
+        // Apply resonance as feedback
+        self.prev_output = lowpass + highpass * resonance;
+        
+        highpass
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
@@ -66,6 +75,7 @@ impl Filter for HighpassFilter {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BandpassFilter {
     cutoff: f32,
     resonance: f32,
@@ -98,13 +108,22 @@ impl BandpassFilter {
 }
 impl Filter for BandpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff;
-        let resonance = self.resonance;
-        let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
-        let r = 1.0 - resonance;
-        self.prev_output = c * (input - self.prev_output) + r * self.prev_output;
+        let cutoff = self.cutoff.max(20.0).min(20000.0);
+        let resonance = self.resonance.max(0.01).min(0.99);
+        
+        // Calculate filter coefficient
+        let omega = 2.0 * std::f32::consts::PI * cutoff / self.sample_rate;
+        let alpha = omega / (omega + 1.0);
+        
+        // Bandpass filter using state variable approach
+        let lowpass = self.prev_output + alpha * (input - self.prev_output);
+        let highpass = input - lowpass;
+        let bandpass = lowpass * (1.0 - resonance) + highpass * resonance;
+        
+        self.prev_output = lowpass;
         self.prev_input = input;
-        self.prev_output
+        
+        bandpass
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
@@ -112,6 +131,7 @@ impl Filter for BandpassFilter {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LowpassFilter {
     cutoff: f32,
     resonance: f32,
@@ -143,11 +163,17 @@ impl LowpassFilter {
 
 impl Filter for LowpassFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff;
-        let resonance = self.resonance;
-        let c = 1.0 / (2.0 * std::f32::consts::PI * cutoff / self.sample_rate);
-        let r = resonance;
-        self.prev_output = c * input + r * self.prev_output;
+        let cutoff = self.cutoff.max(20.0).min(20000.0);
+        let resonance = self.resonance.max(0.0).min(0.99);
+        
+        // Calculate filter coefficient based on cutoff frequency
+        let omega = 2.0 * std::f32::consts::PI * cutoff / self.sample_rate;
+        let alpha = omega / (omega + 1.0);
+        
+        // Apply resonance as feedback
+        let feedback = self.prev_output * resonance;
+        self.prev_output = self.prev_output + alpha * (input + feedback - self.prev_output);
+        
         self.prev_output
     }
 
@@ -156,6 +182,7 @@ impl Filter for LowpassFilter {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct NotchFilter {
     cutoff: f32,
     bandwidth: f32,
@@ -193,8 +220,8 @@ impl NotchFilter {
 
     pub fn calculate_coefficients(&mut self) {
         let wc = 2.0 * PI * self.cutoff / self.sample_rate; // cutoff frequency in radians
-        let bw = 2.0 * PI * self.bandwidth / self.sample_rate; // bandwidth in radians
-        let alpha = wc.sin() * (bw / 2.0).sinh().ln() / (2.0 * (3.0 as f32).sqrt().ln()); // bandwidth parameter
+        let q = (self.bandwidth * 10.0).max(0.1); // Convert bandwidth to Q factor
+        let alpha = wc.sin() / (2.0 * q); // bandwidth parameter
 
         self.a0 = 1.0;
         self.a1 = -2.0 * wc.cos();
@@ -217,10 +244,10 @@ impl NotchFilter {
 
 impl Filter for NotchFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff;
-        let bandwidth = self.bandwidth;
+        let cutoff = self.cutoff.max(20.0).min(20000.0);
+        let bandwidth = self.bandwidth.max(0.01).min(1.0);
 
-        if cutoff != self.cutoff || bandwidth != self.bandwidth {
+        if (cutoff - self.cutoff).abs() > 0.1 || (bandwidth - self.bandwidth).abs() > 0.001 {
             self.cutoff = cutoff;
             self.bandwidth = bandwidth;
             self.calculate_coefficients();
@@ -240,6 +267,7 @@ impl Filter for NotchFilter {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StatevariableFilter {
     cutoff: f32,
     resonance: f32,
@@ -277,12 +305,11 @@ impl StatevariableFilter {
 
 impl Filter for StatevariableFilter {
     fn process(&mut self, input: f32) -> f32 {
-        let cutoff = self.cutoff;
-        let resonance = self.resonance;
+        let cutoff = self.cutoff.max(20.0).min(self.sample_rate * 0.45);
+        let resonance = self.resonance.max(0.01).min(0.99); // Avoid extremes
 
-        let f = cutoff / self.sample_rate;
-        let _k = 2.0 * (1.0 - resonance);
-        let q = 1.0 / (2.0 * resonance);
+        let f = 2.0 * (cutoff / self.sample_rate).min(0.9);
+        let q = 1.0 / (2.0 * resonance).max(0.5); // Q factor
 
         let input_minus_hp = input - self.highpass_output;
         let lp_output = self.lowpass_output + f * self.bandpass_output;
@@ -301,6 +328,8 @@ impl Filter for StatevariableFilter {
         self.sample_rate = sample_rate;
     }
 }
+
+#[derive(Debug, Clone)]
 pub struct NoneFilter {
     cutoff: f32,
     resonance: f32,
