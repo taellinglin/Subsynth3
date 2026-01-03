@@ -1,10 +1,38 @@
-To install the VST3 plugins, copy the .vst3 _directories_ to:
-C:/Program Files/Common Files/VST3/
+SubSynth - Installation Instructions for Windows
+================================================
 
-To install the CLAP plugins, copy the .clap files to:
-C:/Program Files/Common Files/CLAP/
+Thank you for downloading SubSynth!
 
-You will need to create these directories yourself it they do not yet exist.
+VST3 Plugin Installation:
+--------------------------
+1. Copy the SubSynth.vst3 FOLDER (not just the files inside) to:
+   C:\Program Files\Common Files\VST3\
 
-See https://github.com/free-audio/clap#hosts for instructions on how to enable
-CLAP support in your DAW.
+2. If the VST3 folder doesn't exist, create it manually.
+
+3. Restart your DAW (Digital Audio Workstation).
+
+4. Rescan your plugin folders in your DAW if necessary.
+
+CLAP Plugin Installation:
+--------------------------
+1. Copy the SubSynth.clap FILE to:
+   C:\Program Files\Common Files\CLAP\
+
+2. If the CLAP folder doesn't exist, create it manually.
+
+3. Restart your DAW.
+
+4. For CLAP support in your DAW, visit:
+   https://github.com/free-audio/clap#hosts
+
+Troubleshooting:
+----------------
+- Make sure you have administrator privileges when copying files
+- Some DAWs may require you to manually add these directories to their
+  plugin search paths
+- If plugins don't appear, check your DAW's plugin manager/settings
+
+For more information and updates:
+https://github.com/taellinglin/Subsynth3
+

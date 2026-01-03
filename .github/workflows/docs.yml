@@ -7,51 +7,40 @@ on:
 
 defaults:
   run:
-    # This otherwise gets run under dash which does not support brace expansion
     shell: bash
 
 jobs:
   docs:
     name: Generate and upload docs
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      # Needed for git-describe to do anything useful
-      - name: Fetch all git history
-        run: git fetch --force --prune --tags --unshallow
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgl-dev libjack-dev libx11-xcb-dev  libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+          sudo apt-get install -y libasound2-dev libgl-dev libjack-dev libx11-xcb-dev \
+            libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev \
+            libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
-      - uses: actions/cache@v3
-        # FIXME: Caching `target/` causes the Windows runner to blow up after some time
-        if: startsWith(matrix.os, 'windows')
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ matrix.name }}-${{ matrix.cross-target }}
-      - uses: actions/cache@v3
-        if: "!startsWith(matrix.os, 'windows')"
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ matrix.name }}-${{ matrix.cross-target }}
+          key: ubuntu-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-cargo-docs-
+            ubuntu-cargo-
 
       - name: Set up Rust toolchain
-        # Nightly is needed to document the SIMD feature and for the
-        # `doc_auto_cfg` feature
         uses: dtolnay/rust-toolchain@nightly
+
       - name: Generate documentation for all targets
-        # Don't use --all-features here as that will enable a whole bunch of
-        # conflicting iced features. We also don't want to use `--workspace`
-        # here because that would also document our plugins and binary crates.
         run: >-
           cargo doc --features docs,simd,standalone,zstd --no-deps
           -p nih_plug
@@ -64,16 +53,23 @@ jobs:
       - name: Add a redirect index page
         run: |
           cat > target/doc/index.html <<EOF
-          <meta charset="utf-8">
-          <meta http-equiv="refresh" content="0; url=nih_plug">
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=nih_plug">
+              <title>Redirecting to nih_plug documentation</title>
+            </head>
+            <body>
+              <p>Redirecting to <a href="nih_plug">nih_plug documentation</a>...</p>
+            </body>
+          </html>
           EOF
+
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.3.0
+        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        if: github.ref == 'refs/heads/master'
         with:
           branch: gh-pages
           folder: target/doc
-
-          # Having the gh-pages branch on this repository adds a whole bunch of
-          # noise to the GitHub feed if you follow this repo
-          repository-name: robbert-vdh/nih-plug-docs
-          ssh-key: ${{ secrets.DOCS_DEPLOY_KEY }}
+          clean: true
