@@ -281,24 +281,29 @@ mod miri {
     use super::*;
 
     #[test]
-    fn strlcpy_normal() {
+    fn strlcpy_copies_string_completely_to_large_buffer() {
         let mut dest = [0; 256];
         strlcpy(&mut dest, "Hello, world!");
 
-        assert_eq!(
-            unsafe { CStr::from_ptr(dest.as_ptr()) }.to_str(),
-            Ok("Hello, world!")
-        );
+        let result = unsafe { CStr::from_ptr(dest.as_ptr()) }
+            .to_str()
+            .expect("Should produce valid UTF-8 string");
+        
+        assert_eq!(result, "Hello, world!", "String should be copied completely");
     }
 
     #[test]
-    fn strlcpy_overflow() {
+    fn strlcpy_truncates_to_fit_small_buffer() {
         let mut dest = [0; 6];
         strlcpy(&mut dest, "Hello, world!");
 
+        let result = unsafe { CStr::from_ptr(dest.as_ptr()) }
+            .to_str()
+            .expect("Should produce valid UTF-8 string");
+        
         assert_eq!(
-            unsafe { CStr::from_ptr(dest.as_ptr()) }.to_str(),
-            Ok("Hello")
+            result, "Hello",
+            "String should be truncated to fit buffer (including null terminator)"
         );
     }
 }

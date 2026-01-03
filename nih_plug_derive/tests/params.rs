@@ -113,101 +113,102 @@ mod param_order {
     use super::*;
 
     #[test]
-    fn flat() {
-        let p = FlatParams::default();
-
-        // Parameters must have the same order as they are defined in
-        let param_ids: Vec<String> = p.param_map().into_iter().map(|(id, _, _)| id).collect();
-        assert_eq!(param_ids, ["one", "two", "three"]);
+    fn flat_params_maintain_definition_order() {
+        let params = FlatParams::default();
+        let param_ids: Vec<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
+        
+        assert_eq!(param_ids.len(), 3, "Expected 3 parameters");
+        assert_eq!(param_ids, vec!["one", "two", "three"]);
     }
 
     #[test]
-    fn grouped() {
-        let p = GroupedParams::default();
-
-        let param_ids: Vec<String> = p.param_map().into_iter().map(|(id, _, _)| id).collect();
-        assert_eq!(
-            param_ids,
-            [
-                "one",
-                "group1_one",
-                "group1_two",
-                "group1_three",
-                "three",
-                "group2_one",
-                "group2_two",
-                "group2_three",
-            ]
-        );
+    fn grouped_params_preserve_hierarchy() {
+        let params = GroupedParams::default();
+        let param_ids: Vec<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
+        
+        let expected = vec![
+            "one",
+            "group1_one",
+            "group1_two",
+            "group1_three",
+            "three",
+            "group2_one",
+            "group2_two",
+            "group2_three",
+        ];
+        
+        assert_eq!(param_ids.len(), expected.len());
+        assert_eq!(param_ids, expected);
     }
 
     #[test]
-    fn plain_nested() {
+    fn plain_nested_params_match_grouped_structure() {
         let plain_nested = PlainNestedParams::default();
         let grouped = GroupedParams::default();
 
-        let plain_nested_ids_groups: Vec<(String, String)> = plain_nested
+        let plain_nested_mapping: Vec<(String, String)> = plain_nested
             .param_map()
             .into_iter()
             .map(|(id, _, group)| (id, group))
             .collect();
-        let grouped_param_ids_groups: Vec<(String, String)> = grouped
+        
+        let grouped_mapping: Vec<(String, String)> = grouped
             .param_map()
             .into_iter()
             .map(|(id, _, group)| (id, group))
             .collect();
 
-        assert_eq!(plain_nested_ids_groups, grouped_param_ids_groups);
+        assert_eq!(plain_nested_mapping.len(), grouped_mapping.len());
+        assert_eq!(plain_nested_mapping, grouped_mapping);
     }
 
     #[test]
-    fn grouped_groups() {
-        let p = GroupedGroupedParams::default();
+    fn grouped_groups_maintain_flat_ids() {
+        let params = GroupedGroupedParams::default();
+        let param_ids: Vec<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
+        
+        // No ID prefixes are applied at the top level
+        let expected = vec![
+            "one",
+            "group1_one",
+            "group1_two",
+            "group1_three",
+            "three",
+            "group2_one",
+            "group2_two",
+            "group2_three",
+        ];
+        
+        assert_eq!(param_ids, expected);
+    }
 
-        // These don't have ID prefixes, so the IDs should be the same as in `groups()`
-        let param_ids: Vec<String> = p.param_map().into_iter().map(|(id, _, _)| id).collect();
+    #[test]
+    fn nested_params_preserve_position() {
+        let params = NestedParams::default();
+        let param_ids: Vec<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
+
+        // Nested parameters maintain their position without explicit grouping
         assert_eq!(
             param_ids,
-            [
-                "one",
-                "group1_one",
-                "group1_two",
-                "group1_three",
-                "three",
-                "group2_one",
-                "group2_two",
-                "group2_three",
-            ]
+            vec!["one", "two_one", "two_two", "two_three", "three"]
         );
     }
 
     #[test]
-    fn nested() {
-        let p = NestedParams::default();
-
-        // Parameters must have the same order as they are defined in. The position of nested
-        // parameters which are not grouped explicitly is preserved.
-        let param_ids: Vec<String> = p.param_map().into_iter().map(|(id, _, _)| id).collect();
-
-        assert_eq!(
-            param_ids,
-            ["one", "two_one", "two_two", "two_three", "three"]
-        );
-    }
-
-    #[test]
-    fn nested_array() {
-        let p = NestedArrayParams::default();
-
-        // Arrays of nested parameter structs have generated IDs
-        let param_ids: Vec<String> = p.param_map().into_iter().map(|(id, _, _)| id).collect();
-        assert_eq!(
-            param_ids,
-            [
-                "one", "one_1", "two_1", "three_1", "one_2", "two_2", "three_2", "one_3", "two_3",
-                "three_3", "three"
-            ]
-        );
+    fn nested_array_params_generate_indexed_ids() {
+        let params = NestedArrayParams::default();
+        let param_ids: Vec<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
+        
+        // Array indices are appended to parameter IDs
+        let expected = vec![
+            "one", "one_1", "two_1", "three_1", 
+            "one_2", "two_2", "three_2", 
+            "one_3", "two_3", "three_3", 
+            "three"
+        ];
+        
+        assert_eq!(param_ids.len(), 11);
+        assert_eq!(param_ids, expected);
     }
 }
 
@@ -215,104 +216,103 @@ mod param_groups {
     use super::*;
 
     #[test]
-    fn flat() {
-        let p = FlatParams::default();
-
-        // These groups should be all empty
-        let param_groups: Vec<String> = p
+    fn flat_params_have_no_groups() {
+        let params = FlatParams::default();
+        let param_groups: Vec<String> = params
             .param_map()
             .into_iter()
             .map(|(_, _, group)| group)
             .collect();
-        assert_eq!(param_groups, ["", "", ""]);
+        
+        // All flat parameters should have empty group strings
+        assert_eq!(param_groups.len(), 3);
+        assert!(param_groups.iter().all(|g| g.is_empty()));
     }
 
     #[test]
-    fn grouped() {
-        let p = GroupedParams::default();
-
-        let param_groups: Vec<String> = p
+    fn grouped_params_assign_correct_groups() {
+        let params = GroupedParams::default();
+        let param_groups: Vec<String> = params
             .param_map()
             .into_iter()
             .map(|(_, _, group)| group)
             .collect();
-        assert_eq!(
-            param_groups,
-            [
-                "",
-                "Some Group",
-                "Some Group",
-                "Some Group",
-                "",
-                "Another Group",
-                "Another Group",
-                "Another Group",
-            ]
-        );
+        
+        let expected = vec![
+            "",
+            "Some Group",
+            "Some Group",
+            "Some Group",
+            "",
+            "Another Group",
+            "Another Group",
+            "Another Group",
+        ];
+        
+        assert_eq!(param_groups, expected);
     }
 
     #[test]
-    fn grouped_groups() {
-        let p = GroupedGroupedParams::default();
-
-        let param_groups: Vec<String> = p
+    fn grouped_groups_create_hierarchical_paths() {
+        let params = GroupedGroupedParams::default();
+        let param_groups: Vec<String> = params
             .param_map()
             .into_iter()
             .map(|(_, _, group)| group)
             .collect();
-        assert_eq!(
-            param_groups,
-            [
-                "Top-level group",
-                "Top-level group/Some Group",
-                "Top-level group/Some Group",
-                "Top-level group/Some Group",
-                "Top-level group",
-                "Top-level group/Another Group",
-                "Top-level group/Another Group",
-                "Top-level group/Another Group",
-            ]
-        );
+        
+        let expected = vec![
+            "Top-level group",
+            "Top-level group/Some Group",
+            "Top-level group/Some Group",
+            "Top-level group/Some Group",
+            "Top-level group",
+            "Top-level group/Another Group",
+            "Top-level group/Another Group",
+            "Top-level group/Another Group",
+        ];
+        
+        assert_eq!(param_groups, expected);
     }
 
     #[test]
-    fn nested() {
-        let p = NestedParams::default();
-
-        // The nested structs here don't have any groups assigned to them
-        let param_groups: Vec<String> = p
+    fn nested_params_without_explicit_groups() {
+        let params = NestedParams::default();
+        let param_groups: Vec<String> = params
             .param_map()
             .into_iter()
             .map(|(_, _, group)| group)
             .collect();
-        assert_eq!(param_groups, ["", "", "", "", ""]);
+        
+        // No explicit groups means all empty strings
+        assert_eq!(param_groups.len(), 5);
+        assert!(param_groups.iter().all(|g| g.is_empty()));
     }
 
     #[test]
-    fn nested_array() {
-        let p = NestedArrayParams::default();
-
-        // The groups get a numeric suffix here
-        let param_groups: Vec<String> = p
+    fn nested_array_params_add_numeric_suffixes() {
+        let params = NestedArrayParams::default();
+        let param_groups: Vec<String> = params
             .param_map()
             .into_iter()
             .map(|(_, _, group)| group)
             .collect();
-        assert_eq!(
-            param_groups,
-            [
-                "",
-                "Nested Params 1",
-                "Nested Params 1",
-                "Nested Params 1",
-                "Nested Params 2",
-                "Nested Params 2",
-                "Nested Params 2",
-                "Nested Params 3",
-                "Nested Params 3",
-                "Nested Params 3",
-                ""
-            ]
-        );
+        
+        let expected = vec![
+            "",
+            "Nested Params 1",
+            "Nested Params 1",
+            "Nested Params 1",
+            "Nested Params 2",
+            "Nested Params 2",
+            "Nested Params 2",
+            "Nested Params 3",
+            "Nested Params 3",
+            "Nested Params 3",
+            ""
+        ];
+        
+        assert_eq!(param_groups.len(), 11);
+        assert_eq!(param_groups, expected);
     }
 }

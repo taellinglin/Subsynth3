@@ -108,89 +108,101 @@ mod tests {
         use super::super::*;
 
         #[test]
-        fn test_db_to_gain_positive() {
-            assert_eq!(db_to_gain(3.0), 1.4125376);
+        fn converts_positive_db_to_gain() {
+            let result = db_to_gain(3.0);
+            assert_eq!(result, 1.4125376, "3dB should convert to gain of ~1.41");
         }
 
         #[test]
-        fn test_db_to_gain_negative() {
-            assert_eq!(db_to_gain(-3.0), 1.4125376f32.recip());
+        fn converts_negative_db_to_attenuation() {
+            let result = db_to_gain(-3.0);
+            let expected = 1.4125376f32.recip();
+            assert_eq!(result, expected, "-3dB should convert to reciprocal of +3dB gain");
         }
 
         #[test]
-        fn test_db_to_gain_minus_infinity() {
-            assert_eq!(db_to_gain(-100.0), 0.0);
+        fn converts_very_negative_db_to_zero_gain() {
+            let result = db_to_gain(-100.0);
+            assert_eq!(result, 0.0, "Very negative dB should result in zero gain (silence)");
         }
 
         #[test]
-        fn test_gain_to_db_positive() {
-            assert_eq!(gain_to_db(4.0), 12.041201);
+        fn converts_gain_above_unity_to_positive_db() {
+            let result = gain_to_db(4.0);
+            assert_eq!(result, 12.041201, "Gain of 4.0 should be approximately +12dB");
         }
 
         #[test]
-        fn test_gain_to_db_negative() {
-            assert_eq!(gain_to_db(0.25), -12.041201);
+        fn converts_gain_below_unity_to_negative_db() {
+            let result = gain_to_db(0.25);
+            assert_eq!(result, -12.041201, "Gain of 0.25 should be approximately -12dB");
         }
 
         #[test]
-        fn test_gain_to_db_minus_infinity_zero() {
-            assert_eq!(gain_to_db(0.0), MINUS_INFINITY_DB);
+        fn converts_zero_gain_to_minus_infinity() {
+            let result = gain_to_db(0.0);
+            assert_eq!(result, MINUS_INFINITY_DB, "Zero gain should map to minus infinity dB");
         }
 
         #[test]
-        fn test_gain_to_db_minus_infinity_negative() {
-            assert_eq!(gain_to_db(-2.0), MINUS_INFINITY_DB);
+        fn converts_negative_gain_to_minus_infinity() {
+            let result = gain_to_db(-2.0);
+            assert_eq!(result, MINUS_INFINITY_DB, "Negative gain (invalid) should map to minus infinity dB");
         }
     }
 
     mod fast_db_gain_conversion {
         use super::super::*;
 
+        const EPSILON: f32 = 1e-7;
+
         #[test]
-        fn test_db_to_gain_positive() {
-            approx::assert_relative_eq!(
-                db_to_gain(3.0),
-                db_to_gain_fast_branching(3.0),
-                epsilon = 1e-7
-            );
+        fn fast_positive_db_matches_accurate_conversion() {
+            let accurate = db_to_gain(3.0);
+            let fast = db_to_gain_fast_branching(3.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_db_to_gain_negative() {
-            approx::assert_relative_eq!(
-                db_to_gain(-3.0),
-                db_to_gain_fast_branching(-3.0),
-                epsilon = 1e-7
-            );
+        fn fast_negative_db_matches_accurate_conversion() {
+            let accurate = db_to_gain(-3.0);
+            let fast = db_to_gain_fast_branching(-3.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_db_to_gain_minus_infinity() {
-            approx::assert_relative_eq!(
-                db_to_gain(-100.0),
-                db_to_gain_fast_branching(-100.0),
-                epsilon = 1e-7
-            );
+        fn fast_very_negative_db_matches_accurate_conversion() {
+            let accurate = db_to_gain(-100.0);
+            let fast = db_to_gain_fast_branching(-100.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_gain_to_db_positive() {
-            approx::assert_relative_eq!(gain_to_db(4.0), gain_to_db_fast(4.0), epsilon = 1e-7);
+        fn fast_gain_to_db_matches_for_high_gain() {
+            let accurate = gain_to_db(4.0);
+            let fast = gain_to_db_fast(4.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_gain_to_db_negative() {
-            approx::assert_relative_eq!(gain_to_db(0.25), gain_to_db_fast(0.25), epsilon = 1e-7);
+        fn fast_gain_to_db_matches_for_attenuation() {
+            let accurate = gain_to_db(0.25);
+            let fast = gain_to_db_fast(0.25);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_gain_to_db_minus_infinity_zero() {
-            approx::assert_relative_eq!(gain_to_db(0.0), gain_to_db_fast(0.0), epsilon = 1e-7);
+        fn fast_gain_to_db_handles_zero_gain() {
+            let accurate = gain_to_db(0.0);
+            let fast = gain_to_db_fast(0.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
 
         #[test]
-        fn test_gain_to_db_minus_infinity_negative() {
-            approx::assert_relative_eq!(gain_to_db(-2.0), gain_to_db_fast(-2.0), epsilon = 1e-7);
+        fn fast_gain_to_db_handles_negative_gain() {
+            let accurate = gain_to_db(-2.0);
+            let fast = gain_to_db_fast(-2.0);
+            approx::assert_relative_eq!(accurate, fast, epsilon = EPSILON);
         }
     }
 }

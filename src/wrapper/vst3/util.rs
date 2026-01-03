@@ -123,28 +123,29 @@ mod miri {
     use super::*;
 
     #[test]
-    fn u16strlcpy_normal() {
+    fn u16strlcpy_copies_string_without_overflow() {
         let mut dest = [0; 256];
         u16strlcpy(&mut dest, "Hello, world!");
 
-        assert_eq!(
-            unsafe { U16CStr::from_ptr_str(dest.as_ptr() as *const u16) }
-                .to_string()
-                .unwrap(),
-            "Hello, world!"
-        );
+        let result = unsafe { U16CStr::from_ptr_str(dest.as_ptr() as *const u16) }
+            .to_string()
+            .expect("Should produce valid UTF-16 string");
+        
+        assert_eq!(result, "Hello, world!", "String should be copied completely");
     }
 
     #[test]
-    fn u16strlcpy_overflow() {
+    fn u16strlcpy_truncates_when_destination_too_small() {
         let mut dest = [0; 6];
         u16strlcpy(&mut dest, "Hello, world!");
 
+        let result = unsafe { U16CStr::from_ptr_str(dest.as_ptr() as *const u16) }
+            .to_string()
+            .expect("Should produce valid UTF-16 string");
+        
         assert_eq!(
-            unsafe { U16CStr::from_ptr_str(dest.as_ptr() as *const u16) }
-                .to_string()
-                .unwrap(),
-            "Hello"
+            result, "Hello",
+            "String should be truncated to fit buffer (including null terminator)"
         );
     }
 }

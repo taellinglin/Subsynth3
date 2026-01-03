@@ -46,37 +46,46 @@ mod persist {
         use super::super::*;
 
         #[test]
-        fn serialize() {
+        fn serialize_adds_id_prefix_to_nested_fields() {
             let params = WrapperParams::default();
-
-            // This should have had a prefix added to the serialized value
             let serialized = params.serialize_fields();
-            assert_eq!(serialized.len(), 1);
-            assert_eq!(serialized["foo_bar"], "baz");
+            
+            // The nested struct's "bar" key should be prefixed with "foo_"
+            assert_eq!(serialized.len(), 1, "Expected exactly one serialized field");
+            assert_eq!(
+                serialized.get("foo_bar"),
+                Some(&String::from("baz")),
+                "Expected prefixed key 'foo_bar' with value 'baz'"
+            );
         }
 
         #[test]
-        fn deserialize() {
+        fn deserialize_strips_prefix_before_passing_to_nested() {
             let mut serialized = BTreeMap::new();
             serialized.insert(String::from("foo_bar"), String::from("aaa"));
 
             let params = WrapperParams::default();
             params.deserialize_fields(&serialized);
 
-            // This contains the values passed to the inner struct's deserialize function
+            // The prefix should be stripped when passing to the inner struct
             let deserialized = params
                 .inner
                 .deserialize_called_with
                 .lock()
                 .unwrap()
                 .take()
-                .unwrap();
+                .expect("deserialize should have been called");
+            
             assert_eq!(deserialized.len(), 1);
-            assert_eq!(deserialized["bar"], "aaa");
+            assert_eq!(
+                deserialized.get("bar"),
+                Some(&String::from("aaa")),
+                "Inner struct should receive 'bar' (without prefix)"
+            );
         }
 
         #[test]
-        fn deserialize_mismatching_prefix() {
+        fn deserialize_filters_keys_without_matching_prefix() {
             let mut serialized = BTreeMap::new();
             serialized.insert(String::from("foo_bar"), String::from("aaa"));
             serialized.insert(
@@ -87,16 +96,25 @@ mod persist {
             let params = WrapperParams::default();
             params.deserialize_fields(&serialized);
 
-            // The `something` key should not be passed to the child struct
+            // Only keys with the correct prefix should be passed to the nested struct
             let deserialized = params
                 .inner
                 .deserialize_called_with
                 .lock()
                 .unwrap()
                 .take()
-                .unwrap();
-            assert_eq!(deserialized.len(), 1);
-            assert_eq!(deserialized["bar"], "aaa");
+                .expect("deserialize should have been called");
+            
+            assert_eq!(
+                deserialized.len(),
+                1,
+                "Only matching prefix keys should be passed"
+            );
+            assert_eq!(deserialized.get("bar"), Some(&String::from("aaa")));
+            assert!(
+                !deserialized.contains_key("something"),
+                "Keys without prefix should be filtered out"
+            );
         }
     }
 
@@ -104,18 +122,31 @@ mod persist {
         use super::super::*;
 
         #[test]
-        fn serialize() {
+        fn serialize_adds_numeric_suffix_to_array_elements() {
             let params = ArrayWrapperParams::default();
-
             let serialized = params.serialize_fields();
-            assert_eq!(serialized.len(), 3);
-            assert_eq!(serialized["bar_1"], "baz");
-            assert_eq!(serialized["bar_2"], "baz");
-            assert_eq!(serialized["bar_2"], "baz");
+            
+            // Each array element should have its own numbered suffix
+            assert_eq!(serialized.len(), 3, "Expected 3 serialized array elements");
+            assert_eq!(
+                serialized.get("bar_1"),
+                Some(&String::from("baz")),
+                "First array element should have '_1' suffix"
+            );
+            assert_eq!(
+                serialized.get("bar_2"),
+                Some(&String::from("baz")),
+                "Second array element should have '_2' suffix"
+            );
+            assert_eq!(
+                serialized.get("bar_3"),
+                Some(&String::from("baz")),
+                "Third array element should have '_3' suffix"
+            );
         }
 
         #[test]
-        fn deserialize() {
+        fn deserialize_routes_suffixed_keys_to_correct_array_elements() {
             let mut serialized = BTreeMap::new();
             serialized.insert(String::from("bar_1"), String::from("aaa"));
             serialized.insert(String::from("bar_2"), String::from("bbb"));
@@ -123,15 +154,29 @@ mod persist {
 
             let params = ArrayWrapperParams::default();
             params.deserialize_fields(&serialized);
-            for (inner, expected_value) in params.inners.into_iter().zip(["aaa", "bbb", "ccc"]) {
+            
+            // Each array element should receive its corresponding value
+            for (idx, (inner, expected_value)) in params.inners.into_iter().zip(["aaa", "bbb", "ccc"]).enumerate() {
                 let deserialized = inner
                     .deserialize_called_with
                     .lock()
                     .unwrap()
                     .take()
-                    .unwrap();
-                assert_eq!(deserialized.len(), 1);
-                assert_eq!(deserialized["bar"], expected_value);
+                    .expect(&format!("Array element {} should have received deserialize call", idx + 1));
+                
+                assert_eq!(
+                    deserialized.len(),
+                    1,
+                    "Array element {} should have exactly one field",
+                    idx + 1
+                );
+                assert_eq!(
+                    deserialized.get("bar"),
+                    Some(&String::from(expected_value)),
+                    "Array element {} should receive value '{}' without suffix",
+                    idx + 1,
+                    expected_value
+                );
             }
         }
     }
