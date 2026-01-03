@@ -306,22 +306,28 @@ impl StatevariableFilter {
 impl Filter for StatevariableFilter {
     fn process(&mut self, input: f32) -> f32 {
         let cutoff = self.cutoff.max(20.0).min(self.sample_rate * 0.45);
-        let resonance = self.resonance.max(0.01).min(0.99); // Avoid extremes
+        let resonance = self.resonance.max(0.0).min(1.0);
 
-        let f = 2.0 * (cutoff / self.sample_rate).min(0.9);
-        let q = 1.0 / (2.0 * resonance).max(0.5); // Q factor
+        // Calculate frequency parameter (must be < 0.5 for stability)
+        let f = (2.0 * PI * cutoff / self.sample_rate).sin().clamp(0.0, 0.25);
+        
+        // Q factor: higher resonance = lower damping
+        let damp = 2.0 * (1.0 - resonance * 0.9).max(0.1);
 
-        let input_minus_hp = input - self.highpass_output;
-        let lp_output = self.lowpass_output + f * self.bandpass_output;
-        let hp_output = input_minus_hp - lp_output * q - self.bandpass_output;
-        let bp_output = f * hp_output + self.bandpass_output;
+        // Chamberlin state variable filter
+        self.lowpass_output += f * self.bandpass_output;
+        self.highpass_output = input - self.lowpass_output - damp * self.bandpass_output;
+        self.bandpass_output += f * self.highpass_output;
 
-        self.prev_input = input;
-        self.lowpass_output = lp_output;
-        self.highpass_output = hp_output;
-        self.bandpass_output = bp_output;
+        // Prevent NaN/Inf
+        if !self.lowpass_output.is_finite() {
+            self.lowpass_output = 0.0;
+            self.bandpass_output = 0.0;
+            self.highpass_output = 0.0;
+        }
 
-        bp_output
+        // Return bandpass output
+        self.bandpass_output.clamp(-2.0, 2.0)
     }
 
     fn set_sample_rate(&mut self, sample_rate: f32) {
