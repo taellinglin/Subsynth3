@@ -63,7 +63,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           # The macOS AArch64 build is done from an x86_64 macOS CI runner, so
           # it needs to be cross compiled
