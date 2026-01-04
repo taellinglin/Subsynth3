@@ -7,6 +7,10 @@ use std::sync::Arc;
 
 use crate::SubSynthParams;
 
+// zCool font constant
+const ZCOOL_XIAOWEI: &str = "ZCOOL XiaoWei";
+const ZCOOL_FONT_DATA: &[u8] = include_bytes!("assets/ZCOOL_XIAOWEI_REGULAR.ttf");
+
 #[derive(Lens)]
 struct Data {
     params: Arc<SubSynthParams>,
@@ -40,8 +44,11 @@ pub(crate) fn create(
     editor_state: Arc<ViziaState>,
 ) -> Option<Box<dyn Editor>> {
     create_vizia_editor(editor_state, ViziaTheming::Custom, move |cx, _| {
-        assets::register_noto_sans_light(cx);
-        assets::register_noto_sans_thin(cx);
+        // Register zCool font
+        cx.add_fonts_mem(&[ZCOOL_FONT_DATA]);
+        
+        // Set zCool as the default font for the entire UI
+        cx.set_default_font(&[ZCOOL_XIAOWEI]);
 
         Data {
             params: params.clone(),
@@ -50,10 +57,8 @@ pub(crate) fn create(
 
         ResizeHandle::new(cx);
         Label::new(cx, "SubSynth")
-            .font_family(vec![FamilyOwned::Name(String::from(
-                assets::NOTO_SANS_LIGHT,
-            ))])
-            .font_size(32.0) // increase the font size to 24
+            .font_family(vec![FamilyOwned::Name(String::from(ZCOOL_XIAOWEI))])
+            .font_size(32.0)
             .height(Pixels(50.0))
             .width(Stretch(1.0))
             .child_top(Stretch(1.0))
